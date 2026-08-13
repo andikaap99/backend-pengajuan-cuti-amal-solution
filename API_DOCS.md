@@ -194,6 +194,116 @@ Mendapatkan daftar semua departemen.
 
 ---
 
+## Karyawan Endpoints
+
+### 1. Pengajuan Cuti
+**POST** `/karyawan/cuti`
+
+Mengajukan cuti baru (hanya untuk karyawan).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request Body (JSON):**
+```json
+{
+  "jenis_cuti": "Cuti Tahunan",
+  "tanggal_mulai": "2026-08-20",
+  "tanggal_selesai": "2026-08-22",
+  "keterangan": "Libur keluarga",
+  "pengganti": 3
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| jenis_cuti | string | Ya | Jenis cuti (Cuti Tahunan, Sakit, dll) |
+| tanggal_mulai | date | Ya | Tanggal mulai cuti (YYYY-MM-DD) |
+| tanggal_selesai | date | Ya | Tanggal selesai cuti (YYYY-MM-DD) |
+| keterangan | string | Ya | Keterangan/surat izin cuti |
+| pengganti | int | Ya | ID user pengganti |
+
+**Response 200:**
+```json
+{
+  "id_log_cuti": 1,
+  "id_user": 1,
+  "jenis_cuti": "Cuti Tahunan",
+  "tanggal_mulai": "2026-08-20",
+  "tanggal_selesai": "2026-08-22",
+  "keterangan_cuti": "Libur keluarga",
+  "status": "menunggu_pm",
+  "alasan_penolakan": null,
+  "disetujui_pm": null,
+  "disetujui_hr": null,
+  "disetujui_direktur": null,
+  "approved_at_pm": null,
+  "approved_at_hr": null,
+  "approved_at_direktur": null
+}
+```
+
+**Error 400:**
+```json
+{
+  "detail": "Tanggal cuti tidak boleh di masa lalu"
+}
+```
+
+```json
+{
+  "detail": "Maksimal pengajuan 4 hari sebelum hari pertama cuti"
+}
+```
+
+```json
+{
+  "detail": "Tanggal tidak valid"
+}
+```
+
+```json
+{
+  "detail": "Sisa cuti tidak cukup"
+}
+```
+
+```json
+{
+  "detail": "Pengganti tidak boleh diri sendiri"
+}
+```
+
+```json
+{
+  "detail": "Direktur tidak bisa mengajukan cuti"
+}
+```
+
+**Error 403:**
+```json
+{
+  "detail": "Hanya karyawan yang bisa mengajukan cuti"
+}
+```
+
+**Error 404:**
+```json
+{
+  "detail": "User tidak ditemukan"
+}
+```
+
+```json
+{
+  "detail": "User pengganti tidak ditemukan"
+}
+```
+
+---
+
 ## Health Check
 **GET** `/health`
 
