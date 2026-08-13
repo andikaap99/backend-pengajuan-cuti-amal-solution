@@ -45,7 +45,7 @@ class UserMeOut(BaseModel):
     id_pm: int | None = None
     total_cuti: int
     sisa_cuti: int
-    pm: PMOut | None = None
+    # pm: PMOut | None = None
 
     model_config = {"from_attributes": True}
 

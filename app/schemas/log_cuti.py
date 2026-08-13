@@ -27,8 +27,12 @@ class LogCutiOut(BaseModel):
     jenis_cuti: str
     tanggal_mulai: date
     tanggal_selesai: date
-    keterangan: str
-    status: Literal["disetujui_pm", "ditolak_pm", "disetujui_hr", "ditolak_hr", "disetujui_direktur", "ditolak_direktur"]
+    keterangan_cuti: str
+    status: Literal[
+        "menunggu_pm", "disetujui_pm", "ditolak_pm",
+        "menunggu_hr", "disetujui_hr", "ditolak_hr",
+        "menunggu_direktur", "disetujui_direktur", "ditolak_direktur"
+    ]
     alasan_penolakan: Optional[str] = None
     disetujui_pm: Optional[int] = None
     disetujui_hr: Optional[int] = None

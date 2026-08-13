@@ -1,3 +1,4 @@
+from datetime import date
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,10 +15,19 @@ async def create_leave_request(data: LogCutiCreate, user_id: int, db: AsyncSessi
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User tidak ditemukan")
 
+    if data.tanggal_mulai < date.today():
+        raise HTTPException(status_code=400, detail="Tanggal cuti tidak boleh di masa lalu")
+
+    if (data.tanggal_mulai - date.today()).days < 10:
+        raise HTTPException(status_code=400, detail="Maksimal pengajuan 10 hari sebelum hari pertama cuti")
+
     durasi = (data.tanggal_selesai - data.tanggal_mulai).days + 1
 
     if durasi <= 0:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tanggal tidak valid")
+
+    if durasi > 4:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Maksimal cuti selama 4 hari")
 
     if user.sisa_cuti < durasi:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Sisa cuti tidak cukup")
@@ -29,13 +39,19 @@ async def create_leave_request(data: LogCutiCreate, user_id: int, db: AsyncSessi
     if not pengganti.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User pengganti tidak ditemukan")
 
+    if user.role == "direktur":
+        raise HTTPException(status_code=400, detail="Direktur tidak bisa mengajukan cuti")
+
     match user.role:
         case "karyawan":
-            status = "menunggu_pm"
+            if user.id_departemen != 1:
+                status_pengajuan = "menunggu_pm"
+            else:
+                status_pengajuan = "menunggu_hr"
         case "pm":
-            status = "menunggu_hr"
+            status_pengajuan = "menunggu_hr"
         case "hr":
-            status = "menunggu_direktur"
+            status_pengajuan = "menunggu_direktur"
 
     log = LogCuti(
         id_user=user_id,
@@ -44,7 +60,7 @@ async def create_leave_request(data: LogCutiCreate, user_id: int, db: AsyncSessi
         tanggal_selesai=data.tanggal_selesai,
         keterangan_cuti=data.keterangan,
         pengganti=data.pengganti,
-        status=status,
+        status=status_pengajuan,
     )
     db.add(log)
 
