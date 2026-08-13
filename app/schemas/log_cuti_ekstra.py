@@ -10,10 +10,6 @@ class LogCutiEkstraBase(BaseModel):
     keterangan: str
 
 
-class LogCutiEkstraCreate(LogCutiEkstraBase):
-    pass
-
-
 class LogCutiEkstraOut(BaseModel):
     id_log_cuti_ekstra: int
     id_direktur: int

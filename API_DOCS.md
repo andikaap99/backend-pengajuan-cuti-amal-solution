@@ -118,6 +118,82 @@ Authorization: Bearer <token>
 
 ---
 
+### 4. Change Password
+**PUT** `/auth/change-password`
+
+Mengubah password user yang sedang login.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request Body (JSON):**
+```json
+{
+  "password_lama": "oldpassword123",
+  "password_baru": "newpassword456",
+  "konfirmasi_password_baru": "newpassword456"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| password_lama | string | Ya | Password saat ini |
+| password_baru | string | Ya | Password baru |
+| konfirmasi_password_baru | string | Ya | Konfirmasi password baru |
+
+**Response 200:**
+```json
+{
+  "detail": "Password berhasil diubah"
+}
+```
+
+**Error 400:**
+```json
+{
+  "detail": "Password lama salah"
+}
+```
+
+```json
+{
+  "detail": "Konfirmasi password baru tidak cocok"
+}
+```
+
+```json
+{
+  "detail": "Password baru tidak boleh sama dengan password lama"
+}
+```
+
+---
+
+## Departemen Endpoints
+
+### 1. Get All Departemen
+**GET** `/departemen`
+
+Mendapatkan daftar semua departemen.
+
+**Response 200:**
+```json
+[
+  {
+    "id_departemen": 1,
+    "nama_departemen": "Engineering"
+  },
+  {
+    "id_departemen": 2,
+    "nama_departemen": "Human Resources"
+  }
+]
+```
+
+---
+
 ## Health Check
 **GET** `/health`
 

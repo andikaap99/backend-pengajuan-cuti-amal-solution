@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Optional
+from typing import Optional, Literal
 
 from pydantic import BaseModel
 
@@ -8,6 +8,7 @@ class LogCutiBase(BaseModel):
     jenis_cuti: str
     tanggal_mulai: date
     tanggal_selesai: date
+    pengganti: int
     keterangan: str
 
 
@@ -27,7 +28,7 @@ class LogCutiOut(BaseModel):
     tanggal_mulai: date
     tanggal_selesai: date
     keterangan: str
-    status: str
+    status: Literal["disetujui_pm", "ditolak_pm", "disetujui_hr", "ditolak_hr", "disetujui_direktur", "ditolak_direktur"]
     alasan_penolakan: Optional[str] = None
     disetujui_pm: Optional[int] = None
     disetujui_hr: Optional[int] = None

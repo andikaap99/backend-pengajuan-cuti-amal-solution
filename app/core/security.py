@@ -14,15 +14,16 @@ from app.models.user import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
-
+## hash password
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
-
+## check password
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(plain_password.encode(), hashed_password.encode())
 
 
+## create access token
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.now(UTC) + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
@@ -30,6 +31,7 @@ def create_access_token(data: dict) -> str:
     return jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
+## check access token
 def decode_access_token(token: str) -> dict:
     try:
         return jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
@@ -41,6 +43,7 @@ def decode_access_token(token: str) -> dict:
         )
 
 
+## get user
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -64,6 +67,7 @@ async def get_current_user(
     return user
 
 
+## check role
 def require_role(*roles: str):
     async def role_checker(current_user: Annotated[User, Depends(get_current_user)]) -> User:
         if current_user.role not in roles:
