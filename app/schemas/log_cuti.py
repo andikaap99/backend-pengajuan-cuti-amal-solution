@@ -5,7 +5,6 @@ from pydantic import BaseModel
 
 
 class LogCutiBase(BaseModel):
-    jenis_cuti: str
     tanggal_mulai: date
     tanggal_selesai: date
     pengganti: int
@@ -42,3 +41,16 @@ class LogCutiOut(BaseModel):
     approved_at_direktur: Optional[date] = None
 
     model_config = {"from_attributes": True}
+
+class RiwayatCutiOut(BaseModel):
+    jenis_cuti: str
+    tanggal_mulai: date
+    tanggal_selesai: date
+    keterangan: str
+    nama_pengganti: str
+    durasi: int
+    status: Literal[
+        "menunggu_pm", "disetujui_pm", "ditolak_pm",
+        "menunggu_hr", "disetujui_hr", "ditolak_hr",
+        "menunggu_direktur", "disetujui_direktur", "ditolak_direktur"
+    ]

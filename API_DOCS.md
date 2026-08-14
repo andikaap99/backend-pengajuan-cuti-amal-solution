@@ -199,7 +199,7 @@ Mendapatkan daftar semua departemen.
 ### 1. Pengajuan Cuti
 **POST** `/karyawan/cuti`
 
-Mengajukan cuti baru (hanya untuk karyawan).
+Mengajukan cuti baru (hanya untuk karyawan). Jenis cuti otomatis "cuti tahunan".
 
 **Headers:**
 ```
@@ -209,7 +209,6 @@ Authorization: Bearer <token>
 **Request Body (JSON):**
 ```json
 {
-  "jenis_cuti": "Cuti Tahunan",
   "tanggal_mulai": "2026-08-20",
   "tanggal_selesai": "2026-08-22",
   "keterangan": "Libur keluarga",
@@ -219,7 +218,6 @@ Authorization: Bearer <token>
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| jenis_cuti | string | Ya | Jenis cuti (Cuti Tahunan, Sakit, dll) |
 | tanggal_mulai | date | Ya | Tanggal mulai cuti (YYYY-MM-DD) |
 | tanggal_selesai | date | Ya | Tanggal selesai cuti (YYYY-MM-DD) |
 | keterangan | string | Ya | Keterangan/surat izin cuti |
@@ -230,7 +228,7 @@ Authorization: Bearer <token>
 {
   "id_log_cuti": 1,
   "id_user": 1,
-  "jenis_cuti": "Cuti Tahunan",
+  "jenis_cuti": "cuti tahunan",
   "tanggal_mulai": "2026-08-20",
   "tanggal_selesai": "2026-08-22",
   "keterangan_cuti": "Libur keluarga",
@@ -254,13 +252,19 @@ Authorization: Bearer <token>
 
 ```json
 {
-  "detail": "Maksimal pengajuan 4 hari sebelum hari pertama cuti"
+  "detail": "Maksimal pengajuan 10 hari sebelum hari pertama cuti"
 }
 ```
 
 ```json
 {
   "detail": "Tanggal tidak valid"
+}
+```
+
+```json
+{
+  "detail": "Maksimal cuti selama 4 hari"
 }
 ```
 
@@ -285,7 +289,7 @@ Authorization: Bearer <token>
 **Error 403:**
 ```json
 {
-  "detail": "Hanya karyawan yang bisa mengajukan cuti"
+  "detail": "Anda tidak memiliki akses"
 }
 ```
 
@@ -300,6 +304,128 @@ Authorization: Bearer <token>
 {
   "detail": "User pengganti tidak ditemukan"
 }
+```
+
+---
+
+### 2. Riwayat Pengajuan Cuti
+**GET** `/karyawan/cuti`
+
+Melihat semua riwayat pengajuan cuti milik user yang sedang login.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response 200:**
+```json
+[
+  {
+    "jenis_cuti": "cuti tahunan",
+    "tanggal_mulai": "2026-08-20",
+    "tanggal_selesai": "2026-08-22",
+    "keterangan": "Libur keluarga",
+    "nama_pengganti": "Budi Santoso",
+    "durasi": 3,
+    "status": "menunggu_pm"
+  },
+  {
+    "jenis_cuti": "cuti tahunan",
+    "tanggal_mulai": "2026-07-10",
+    "tanggal_selesai": "2026-07-11",
+    "keterangan": "Sakit flu",
+    "nama_pengganti": "Andi Wijaya",
+    "durasi": 2,
+    "status": "disetujui_direktur"
+  }
+]
+```
+
+---
+
+## Project Manager Endpoints
+
+### 1. Get All PM
+**GET** `/pm`
+
+Mendapatkan daftar semua Project Manager.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** pm, hr, direktur
+
+**Response 200:**
+```json
+[
+  {
+    "id_user": 5,
+    "nama": "Jane Smith"
+  },
+  {
+    "id_user": 8,
+    "nama": "Robert Johnson"
+  }
+]
+```
+
+---
+
+## Human Resources Endpoints
+
+### 1. Get All HR
+**GET** `/hr`
+
+Mendapatkan daftar semua HR.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** hr, direktur
+
+**Response 200:**
+```json
+[
+  {
+    "id_user": 3,
+    "nama": "Sarah Williams"
+  },
+  {
+    "id_user": 6,
+    "nama": "Michael Brown"
+  }
+]
+```
+
+---
+
+## Direktur Endpoints
+
+### 1. Get All Direktur
+**GET** `/direktur`
+
+Mendapatkan daftar semua Direktur.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** direktur
+
+**Response 200:**
+```json
+[
+  {
+    "id_user": 2,
+    "nama": "David Lee"
+  }
+]
 ```
 
 ---

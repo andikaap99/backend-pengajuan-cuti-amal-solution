@@ -27,10 +27,9 @@ class UserOut(BaseModel):
 
     model_config = {"from_attributes": True}
 
-## data pm apa aja yang ditampilin (usermeout)
-class PMOut(BaseModel):
+## data petinggi apa aja yang ditampilin (usermeout)
+class ExecutiveOut(BaseModel):
     id_user: int
-    username: str
     nama: str
 
     model_config = {"from_attributes": True}

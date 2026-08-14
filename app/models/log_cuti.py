@@ -1,3 +1,4 @@
+from datetime import date
 from sqlalchemy import Column, Date, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
@@ -20,6 +21,7 @@ class LogCuti(Base):
         "menunggu_hr", "disetujui_hr", "ditolak_hr",
         "menunggu_direktur", "disetujui_direktur", "ditolak_direktur"
         ), nullable=False)
+    tanggal_pengajuan = Column(Date, default=date.today)
     alasan_penolakan = Column(Text, nullable=True)
     disetujui_pm = Column(ForeignKey("users.id_user"), nullable=True)
     disetujui_hr = Column(ForeignKey("users.id_user"), nullable=True)

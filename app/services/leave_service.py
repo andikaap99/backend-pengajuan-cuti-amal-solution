@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.log_cuti import LogCuti
 from app.models.user import User
-from app.schemas.log_cuti import LogCutiCreate
+from app.schemas.log_cuti import LogCutiCreate, RiwayatCutiOut
 
 
 async def create_leave_request(data: LogCutiCreate, user_id: int, db: AsyncSession) -> LogCuti:
@@ -55,7 +55,7 @@ async def create_leave_request(data: LogCutiCreate, user_id: int, db: AsyncSessi
 
     log = LogCuti(
         id_user=user_id,
-        jenis_cuti=data.jenis_cuti,
+        jenis_cuti="cuti tahunan",
         tanggal_mulai=data.tanggal_mulai,
         tanggal_selesai=data.tanggal_selesai,
         keterangan_cuti=data.keterangan,
@@ -70,3 +70,30 @@ async def create_leave_request(data: LogCutiCreate, user_id: int, db: AsyncSessi
     await db.commit()
     await db.refresh(log)
     return log
+
+
+async def get_all_leaves(db: AsyncSession) -> list[LogCuti]:
+    result = await db.execute(select(LogCuti))
+    return result.scalars().all()
+
+
+async def get_my_leaves(user_id: int, db: AsyncSession) -> list[RiwayatCutiOut]:
+    result = await db.execute(select(LogCuti).where(LogCuti.id_user == user_id))
+    logs = result.scalars().all()
+
+    list_pengganti_ids = [log.pengganti for log in logs]
+    result_pengganti = await db.execute(select(User).where(User.id_user.in_(list_pengganti_ids)))
+    map_pengganti = {u.id_user: u.nama for u in result_pengganti.scalars().all()}
+
+    return [
+        RiwayatCutiOut(
+            jenis_cuti=log.jenis_cuti,
+            tanggal_mulai=log.tanggal_mulai,
+            tanggal_selesai=log.tanggal_selesai,
+            nama_pengganti=map_pengganti.get(log.pengganti, "Tidak diketahui"),
+            keterangan=log.keterangan_cuti,
+            durasi=(log.tanggal_selesai - log.tanggal_mulai).days + 1,
+            status=log.status,
+        )
+        for log in logs
+    ]
