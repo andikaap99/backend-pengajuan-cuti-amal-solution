@@ -54,3 +54,23 @@ class RiwayatCutiOut(BaseModel):
         "menunggu_hr", "disetujui_hr", "ditolak_hr",
         "menunggu_direktur", "disetujui_direktur", "ditolak_direktur"
     ]
+
+
+class PengajuanOngoingOut(BaseModel):
+    jenis_cuti: str
+    durasi: int
+    keterangan: str
+    tanggal_mulai: date
+    tanggal_selesai: date
+    status_sekarang: Literal[
+        "menunggu_pm", "disetujui_pm", "ditolak_pm",
+        "menunggu_hr", "disetujui_hr", "ditolak_hr",
+        "menunggu_direktur", "disetujui_direktur", "ditolak_direktur"
+    ]
+    disetujui_pm: Optional[int] = None
+    disetujui_hr: Optional[int] = None
+    disetujui_direktur: Optional[int] = None
+    approved_at_pm: Optional[date] = None
+    approved_at_hr: Optional[date] = None
+    approved_at_direktur: Optional[date] = None
+    alasan_penolakan: Optional[str] = None

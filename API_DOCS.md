@@ -344,6 +344,57 @@ Authorization: Bearer <token>
 
 ---
 
+### 3. Pengajuan Cuti Ongoing
+**GET** `/karyawan/cuti/ongoing`
+
+Melihat semua cuti yang masih dalam proses (belum selesai/ditolak).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** karyawan, hr, pm
+
+**Response 200:**
+```json
+[
+  {
+    "jenis_cuti": "cuti tahunan",
+    "durasi": 3,
+    "keterangan": "Libur keluarga",
+    "tanggal_mulai": "2026-08-20",
+    "tanggal_selesai": "2026-08-22",
+    "status_sekarang": "menunggu_hr",
+    "disetujui_pm": 5,
+    "disetujui_hr": null,
+    "disetujui_direktur": null,
+    "approved_at_pm": "2026-08-18",
+    "approved_at_hr": null,
+    "approved_at_direktur": null,
+    "alasan_penolakan": null
+  }
+]
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| jenis_cuti | string | Jenis cuti (selalu "cuti tahunan") |
+| durasi | int | Durasi cuti dalam hari |
+| keterangan | string | Keterangan cuti |
+| tanggal_mulai | date | Tanggal mulai cuti |
+| tanggal_selesai | date | Tanggal selesai cuti |
+| status_sekarang | string | Status pengajuan saat ini |
+| disetujui_pm | int \| null | ID PM yang menyetujui (null jika belum) |
+| disetujui_hr | int \| null | ID HR yang menyetujui (null jika belum) |
+| disetujui_direktur | int \| null | ID Direktur yang menyetujui (null jika belum) |
+| approved_at_pm | date \| null | Tanggal PM menyetujui |
+| approved_at_hr | date \| null | Tanggal HR menyetujui |
+| approved_at_direktur | date \| null | Tanggal Direktur menyetujui |
+| alasan_penolakan | string \| null | Alasan penolakan (null jika tidak ditolak) |
+
+---
+
 ## Project Manager Endpoints
 
 ### 1. Get All PM
