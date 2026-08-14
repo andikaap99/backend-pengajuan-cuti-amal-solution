@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import create_access_token, get_current_user, hash_password, verify_password, require_role
 from app.db import get_db
 from app.models.user import User
-from app.schemas.user import Token, UserOut, UserRegister, UserMeOut, UserRegisterAdmin, ChangePassword, ChangePasswordMessage
+from app.schemas.user import Token, UserOut, UserRegister, UserMeOut, UserRegisterAdmin, ChangePassword, ChangePasswordMessage, ExecutiveOut
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -124,3 +124,13 @@ async def get_me(current_user: Annotated[User, Depends(get_current_user)], db: A
     )
     user = result.scalar_one()
     return user
+
+
+## route get all users
+@router.get("/users", response_model=list[ExecutiveOut])
+async def get_all_users(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    result = await db.execute(select(User))
+    return result.scalars().all()

@@ -171,6 +171,36 @@ Authorization: Bearer <token>
 
 ---
 
+### 5. Get All Users
+**GET** `/auth/users`
+
+Mendapatkan daftar semua user (id_user dan nama).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response 200:**
+```json
+[
+  {
+    "id_user": 1,
+    "nama": "John Doe"
+  },
+  {
+    "id_user": 2,
+    "nama": "Jane Smith"
+  },
+  {
+    "id_user": 3,
+    "nama": "Budi Santoso"
+  }
+]
+```
+
+---
+
 ## Departemen Endpoints
 
 ### 1. Get All Departemen
