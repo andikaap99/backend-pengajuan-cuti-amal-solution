@@ -459,6 +459,123 @@ Authorization: Bearer <token>
 
 ---
 
+### 4. Ringkasan Cuti Dashboard
+**GET** `/karyawan/cuti/ringkasan`
+
+Melihat ringkasan cuti untuk dashboard karyawan.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** karyawan, pm, hr
+
+**Response 200:**
+```json
+{
+  "periode_tahun": 2026,
+  "total_cuti": 12,
+  "cuti_terpakai": 3,
+  "sisa_cuti": 9
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| periode_tahun | int | Tahun periode cuti |
+| total_cuti | int | Total jatah cuti per tahun |
+| cuti_terpakai | int | Jumlah cuti yang sudah terpakai |
+| sisa_cuti | int | Sisa jatah cuti |
+
+---
+
+### 5. Kalender Cuti Saya
+**GET** `/karyawan/kalender-cuti-saya`
+
+Melihat kalender cuti pribadi (data per hari).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** karyawan, pm, hr
+
+**Response 200:**
+```json
+[
+  {
+    "tanggal": "2026-07-07",
+    "nama": "John Doe",
+    "keterangan": "Libur keluarga",
+    "jenis_cuti": "cuti tahunan",
+    "status": "disetujui_direktur"
+  },
+  {
+    "tanggal": "2026-07-08",
+    "nama": "John Doe",
+    "keterangan": "Libur keluarga",
+    "jenis_cuti": "cuti tahunan",
+    "status": "disetujui_direktur"
+  }
+]
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| tanggal | date | Tanggal cuti (per hari) |
+| nama | string | Nama karyawan |
+| keterangan | string | Keterangan cuti |
+| jenis_cuti | string | Jenis cuti |
+| status | string | Status pengajuan |
+
+---
+
+### 6. Kalender Cuti Tim
+**GET** `/karyawan/kalender-cuti-tim`
+
+Melihat kalender cuti seluruh anggota tim (data per hari).
+- **PM**: melihat cuti sendiri + anggota tim
+- **Karyawan**: melihat cuti semua yang satu tim (id_pm sama)
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** karyawan, pm, hr
+
+**Response 200:**
+```json
+[
+  {
+    "tanggal": "2026-07-07",
+    "nama": "John Doe",
+    "keterangan": "Libur keluarga",
+    "jenis_cuti": "cuti tahunan",
+    "status": "disetujui_direktur"
+  },
+  {
+    "tanggal": "2026-07-07",
+    "nama": "Budi Santoso",
+    "keterangan": "Sakit",
+    "jenis_cuti": "cuti tahunan",
+    "status": "menunggu_pm"
+  }
+]
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| tanggal | date | Tanggal cuti (per hari) |
+| nama | string | Nama karyawan |
+| keterangan | string | Keterangan cuti |
+| jenis_cuti | string | Jenis cuti |
+| status | string | Status pengajuan |
+
+---
+
 ## Project Manager Endpoints
 
 ### 1. Get All PM

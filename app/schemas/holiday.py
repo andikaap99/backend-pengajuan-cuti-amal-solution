@@ -13,7 +13,6 @@ class HolidayOut(BaseModel):
 
     model_config = {"from_attributes": True}
 
-
 class NextCutiBersamaOut(BaseModel):
     nama_libur: str
     tanggal_mulai: date

@@ -6,8 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import require_role
 from app.db import get_db
 from app.models.user import User
-from app.schemas.log_cuti import PengajuanCutiCreate, PengajuanCutiOut, RiwayatCutiOut, PengajuanOngoingOut, RingkasanCutiOut
+from app.schemas.log_cuti import PengajuanCutiCreate, PengajuanCutiOut, RiwayatCutiOut, EmpDashboardPengajuanOngoingOut, EmpDashboardRingkasanOut
 from app.services.leave_service import create_pengajuan_cuti, get_my_cuti, get_my_ongoing_cuti, get_my_ringkasan_cuti
+from app.services.kalender_service import get_my_kalender_cuti, get_kalender_cuti_tim
+from app.schemas.kalender import CutiSayaOut
 
 router = APIRouter(prefix="/karyawan", tags=["Karyawan"])
 
@@ -34,7 +36,7 @@ async def get_all_cuti(
 
 
 ## routes liat riwayat cuti yang ongoing (belum acc)
-@router.get("/cuti/ongoing", response_model=list[PengajuanOngoingOut])
+@router.get("/cuti/ongoing", response_model=list[EmpDashboardPengajuanOngoingOut])
 async def get_all_cuti_ongoing(
     current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr"))],
     db: Annotated[AsyncSession, Depends(get_db)]
@@ -44,10 +46,26 @@ async def get_all_cuti_ongoing(
 
 
 ## routes liat ringkasan cuti dashboard
-@router.get("/cuti/ringkasan", response_model=RingkasanCutiOut)
+@router.get("/cuti/ringkasan", response_model=EmpDashboardRingkasanOut)
 async def get_ringkasan_cuti(
     current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
 
     return await get_my_ringkasan_cuti(current_user.id_user, db)
+
+
+@router.get("/kalender-cuti-saya", response_model=list[CutiSayaOut])
+async def get_kalender(
+    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr"))],
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
+    return await get_my_kalender_cuti(current_user.id_user, db)
+
+
+@router.get("/kalender-cuti-tim", response_model=list[CutiSayaOut])
+async def get_kalender_tim(
+    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr"))],
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
+    return await get_kalender_cuti_tim(current_user.id_user, db)

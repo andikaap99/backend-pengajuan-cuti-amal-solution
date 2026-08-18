@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.log_cuti import LogCuti
 from app.models.user import User
-from app.schemas.log_cuti import PengajuanCutiOut, RiwayatCutiOut, PengajuanOngoingOut, RingkasanCutiOut
+from app.schemas.log_cuti import PengajuanCutiOut, RiwayatCutiOut, EmpDashboardPengajuanOngoingOut, EmpDashboardRingkasanOut
 
 
 
@@ -86,7 +86,7 @@ async def get_my_cuti(user_id: int, db: AsyncSession) -> list[RiwayatCutiOut]:
 
 
 ## fungsi get all cuti pribadi (ongoing only)
-async def get_my_ongoing_cuti(user_id: int, db: AsyncSession) -> list[PengajuanOngoingOut]:
+async def get_my_ongoing_cuti(user_id: int, db: AsyncSession) -> list[EmpDashboardPengajuanOngoingOut]:
     result_user = await db.execute(select(User).where(User.id_user == user_id))
     user = result_user.scalar_one()
 
@@ -100,7 +100,7 @@ async def get_my_ongoing_cuti(user_id: int, db: AsyncSession) -> list[PengajuanO
     logs = result.scalars().all()
 
     return [
-        PengajuanOngoingOut(
+        EmpDashboardPengajuanOngoingOut(
             jenis_cuti=log.jenis_cuti,
             durasi=(log.tanggal_selesai - log.tanggal_mulai).days + 1,
             keterangan_cuti=log.keterangan_cuti,
@@ -135,11 +135,11 @@ def get_ongoing_statuses(user: User) -> list[str]:
 
 
 ## fungsi untuk menampilkan ringkasan cuti dashboard
-async def get_my_ringkasan_cuti(user_id: int, db: AsyncSession) -> RingkasanCutiOut:
+async def get_my_ringkasan_cuti(user_id: int, db: AsyncSession) -> EmpDashboardRingkasanOut:
     result_user = await db.execute(select(User).where(User.id_user == user_id))
     user = result_user.scalar_one()
 
-    return RingkasanCutiOut(
+    return EmpDashboardRingkasanOut(
         periode_tahun=date.today().year,
         total_cuti=user.total_cuti,
         cuti_terpakai=user.total_cuti - user.sisa_cuti,
@@ -208,7 +208,7 @@ async def kurangi_jatah_by_kalender():
 #     return passed
 
 
-# async def get_ongoing_leave(user_id: int, db: AsyncSession) -> PengajuanOngoingOut | None:
+# async def get_ongoing_leave(user_id: int, db: AsyncSession) -> EmpDashboardPengajuanOngoingOut | None:
 #     result_user = await db.execute(select(User).where(User.id_user == user_id))
 #     user = result_user.scalar_one()
 
@@ -227,7 +227,7 @@ async def kurangi_jatah_by_kalender():
 #     all_steps = get_all_approval_steps(user)
 #     all_status = get_passed_approvals(log, all_steps)
 
-#     return PengajuanOngoingOut(
+#     return EmpDashboardPengajuanOngoingOut(
 #         jenis_cuti=log.jenis_cuti,
 #         durasi=(log.tanggal_selesai - log.tanggal_mulai).days + 1,
 #         keterangan=log.keterangan_cuti,

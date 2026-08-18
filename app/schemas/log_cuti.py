@@ -49,7 +49,7 @@ class RiwayatCutiOut(BaseModel):
     ]
 
 
-class PengajuanOngoingOut(BaseModel):
+class EmpDashboardPengajuanOngoingOut(BaseModel):
     jenis_cuti: str
     durasi: int
     keterangan_cuti: str
@@ -69,7 +69,7 @@ class PengajuanOngoingOut(BaseModel):
     alasan_penolakan: Optional[str] = None
 
 
-class RingkasanCutiOut(BaseModel):
+class EmpDashboardRingkasanOut(BaseModel):
     periode_tahun: int
     total_cuti: int
     cuti_terpakai: int
