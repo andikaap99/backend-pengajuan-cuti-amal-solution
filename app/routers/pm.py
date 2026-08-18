@@ -16,7 +16,6 @@ router = APIRouter(prefix="/pm", tags=["Project Manager"])
 
 @router.get("", response_model=list[ExecutiveOut])
 async def get_all_pm(
-    current_user: Annotated[User, Depends(require_role("hr", "direktur"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     result = await db.execute(select(User).where(User.role == "pm"))
