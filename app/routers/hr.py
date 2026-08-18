@@ -14,7 +14,6 @@ router = APIRouter(prefix="/hr", tags=["Human Resources"])
 
 @router.get("", response_model=list[ExecutiveOut])
 async def get_all_hr(
-    current_user: Annotated[User, Depends(require_role("hr", "direktur"))],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     result = await db.execute(select(User).where(User.role == "hr"))
