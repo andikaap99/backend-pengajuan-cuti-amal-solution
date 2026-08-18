@@ -7,7 +7,7 @@ from pydantic import BaseModel
 class PengajuanCutiBase(BaseModel):
     tanggal_mulai: date
     tanggal_selesai: date
-    pengganti: int
+    pengganti: Optional[int] = None
     keterangan_cuti: str
 
 

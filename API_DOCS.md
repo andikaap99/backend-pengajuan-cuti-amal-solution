@@ -285,7 +285,7 @@ Authorization: Bearer <token>
 | tanggal_mulai | date | Ya | Tanggal mulai cuti (YYYY-MM-DD) |
 | tanggal_selesai | date | Ya | Tanggal selesai cuti (YYYY-MM-DD) |
 | keterangan | string | Ya | Keterangan/surat izin cuti |
-| pengganti | int | Ya | ID user pengganti |
+| pengganti | int | Tidak | ID user pengganti (nullable) |
 
 **Response 200:**
 ```json
@@ -471,7 +471,7 @@ Mendapatkan daftar semua Project Manager.
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** pm, hr, direktur
+**Role Akses:** hr, direktur
 
 **Response 200:**
 ```json
@@ -486,6 +486,80 @@ Authorization: Bearer <token>
   }
 ]
 ```
+
+---
+
+### 2. Ringkasan Tim
+**GET** `/pm/ringkasan-tim`
+
+Mendapatkan ringkasan data tim yang dikelola PM (total pengajuan, menunggu persetujuan, sedang cuti).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** pm
+
+**Response 200:**
+```json
+{
+  "tahun": 2026,
+  "total_pengajuan": 15,
+  "menunggu_persetujuan": 3,
+  "sedang_cuti": 1
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| tahun | int | Tahun saat ini |
+| total_pengajuan | int | Total pengajuan cuti dari anggota tim |
+| menunggu_persetujuan | int | Pengajuan yang masih menunggu persetujuan PM |
+| sedang_cuti | int | Anggota tim yang sedang cuti |
+
+---
+
+### 3. Queue Card
+**GET** `/pm/queue-card`
+
+Mendapatkan daftar pengajuan cuti yang menunggu persetujuan PM.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** pm
+
+**Response 200:**
+```json
+[
+  {
+    "nama": "John Doe",
+    "nama_departemen": "Engineering",
+    "jenis_cuti": "cuti tahunan",
+    "tanggal_mulai": "2026-08-20",
+    "tanggal_selesai": "2026-08-22",
+    "durasi": 3,
+    "pengganti": "Budi Santoso",
+    "sisa_cuti": 9,
+    "alasan": "Libur keluarga"
+  }
+]
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| nama | string | Nama karyawan yang mengajukan |
+| nama_departemen | string | Nama departemen karyawan |
+| jenis_cuti | string | Jenis cuti |
+| tanggal_mulai | date | Tanggal mulai cuti |
+| tanggal_selesai | date | Tanggal selesai cuti |
+| durasi | int | Durasi cuti dalam hari |
+| pengganti | string | Nama pengganti (atau "Tidak ada") |
+| sisa_cuti | int | Sisa jatah cuti karyawan |
+| alasan | string | Keterangan/alasan cuti |
 
 ---
 

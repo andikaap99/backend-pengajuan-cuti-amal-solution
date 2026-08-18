@@ -31,12 +31,13 @@ async def create_pengajuan_cuti(data: PengajuanCutiOut, user_id: int, db: AsyncS
     if durasi > 4:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Maksimal cuti selama 4 hari")
 
-    if data.pengganti == user_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Pengganti tidak boleh diri sendiri")
+    if data.pengganti is not None:
+        if data.pengganti == user_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Pengganti tidak boleh diri sendiri")
 
-    pengganti = await db.execute(select(User).where(User.id_user == data.pengganti))
-    if not pengganti.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User pengganti tidak ditemukan")
+        pengganti = await db.execute(select(User).where(User.id_user == data.pengganti))
+        if not pengganti.scalar_one_or_none():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User pengganti tidak ditemukan")
 
     if user.role == "direktur":
         raise HTTPException(status_code=400, detail="Direktur tidak bisa mengajukan cuti")
@@ -66,16 +67,16 @@ async def get_my_cuti(user_id: int, db: AsyncSession) -> list[RiwayatCutiOut]:
     result = await db.execute(select(LogCuti).where(LogCuti.id_user == user_id))
     logs = result.scalars().all()
 
-    list_pengganti_ids = [log.pengganti for log in logs]
-    result_pengganti = await db.execute(select(User).where(User.id_user.in_(list_pengganti_ids)))
-    map_pengganti = {u.id_user: u.nama for u in result_pengganti.scalars().all()}
+    list_pengganti_ids = [log.pengganti for log in logs if log.pengganti is not None]
+    result_pengganti = await db.execute(select(User).where(User.id_user.in_(list_pengganti_ids))) if list_pengganti_ids else None
+    map_pengganti = {u.id_user: u.nama for u in result_pengganti.scalars().all()} if result_pengganti else {}
 
     return [
         RiwayatCutiOut(
             jenis_cuti=log.jenis_cuti,
             tanggal_mulai=log.tanggal_mulai,
             tanggal_selesai=log.tanggal_selesai,
-            nama_pengganti=map_pengganti.get(log.pengganti, "Tidak diketahui"),
+            nama_pengganti=map_pengganti.get(log.pengganti, "Tidak ada") if log.pengganti else "Tidak ada",
             keterangan_cuti=log.keterangan_cuti,
             durasi=(log.tanggal_selesai - log.tanggal_mulai).days + 1,
             status=log.status,
