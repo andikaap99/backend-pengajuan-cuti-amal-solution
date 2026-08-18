@@ -12,4 +12,5 @@ router = APIRouter(prefix="/departemen", tags=["Departemen"])
 
 @router.get("", response_model=list[DepartemenOut])
 async def get_departements(db: Annotated[AsyncSession, Depends(get_db)]):
+    
     return await get_all_departements(db)

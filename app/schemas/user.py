@@ -1,3 +1,6 @@
+from datetime import date
+from typing import Optional
+
 from pydantic import BaseModel
 
 
@@ -44,6 +47,9 @@ class UserMeOut(BaseModel):
     id_pm: int | None = None
     total_cuti: int
     sisa_cuti: int
+    email: Optional[str] = None
+    no_telp: Optional[str] = None
+    tanggal_bergabung: Optional[date] = None
     # pm: PMOut | None = None
 
     model_config = {"from_attributes": True}
@@ -62,3 +68,14 @@ class ChangePassword(BaseModel):
     password_lama: str
     password_baru: str
     konfirmasi_password_baru: str
+
+
+## data update profile
+class UpdateProfile(BaseModel):
+    email: Optional[str] = None
+    no_telp: Optional[str] = None
+    tanggal_bergabung: Optional[date] = None
+
+
+class UpdateProfileMessage(BaseModel):
+    detail: str

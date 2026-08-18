@@ -18,4 +18,5 @@ async def get_all_hr(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     result = await db.execute(select(User).where(User.role == "hr"))
+    
     return result.scalars().all()

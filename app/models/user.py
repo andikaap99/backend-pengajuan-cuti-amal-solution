@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import Column, Date, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base
@@ -17,6 +17,9 @@ class User(Base):
     id_pm = Column(Integer, ForeignKey("users.id_user"), nullable=True)
     total_cuti = Column(Integer, default=12)
     sisa_cuti = Column(Integer, default=12)
+    email = Column(String(100), nullable=True)
+    no_telp = Column(String(20), nullable=True)
+    tanggal_bergabung = Column(Date, nullable=True)
 
     ## relation dari tabel ini
     user_departemen = relationship("Departemen", back_populates="user_departemen")

@@ -18,4 +18,5 @@ async def get_all_direktur(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     result = await db.execute(select(User).where(User.role == "direktur"))
+    
     return result.scalars().all()

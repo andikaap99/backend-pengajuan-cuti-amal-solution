@@ -201,6 +201,40 @@ Authorization: Bearer <token>
 
 ---
 
+### 6. Update Profile
+**PUT** `/auth/profile`
+
+Mengupdate data profile (email, no_telp, tanggal_bergabung). Semua field bersifat optional.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request Body (JSON):**
+```json
+{
+  "email": "john@example.com",
+  "no_telp": "08123456789",
+  "tanggal_bergabung": "2024-01-15"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| email | string | Tidak | Alamat email |
+| no_telp | string | Tidak | Nomor telepon |
+| tanggal_bergabung | date | Tidak | Tanggal bergabung (YYYY-MM-DD) |
+
+**Response 200:**
+```json
+{
+  "detail": "Profile berhasil diupdate"
+}
+```
+
+---
+
 ## Departemen Endpoints
 
 ### 1. Get All Departemen
@@ -508,6 +542,65 @@ Authorization: Bearer <token>
   }
 ]
 ```
+
+---
+
+## Holidays Endpoints
+
+### 1. Sync Holidays
+**POST** `/holidays/sync`
+
+Sinkronisasi data libur nasional dan cuti bersama dari API Kemendesa ke database.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** hr, direktur
+
+**Response 200:**
+```json
+{
+  "detail": "Berhasil sync 8 data libur tahun 2026"
+}
+```
+
+---
+
+### 2. Next Cuti Bersama
+**GET** `/holidays/next`
+
+Melihat cuti bersama berikutnya yang paling dekat (termasuk yang berturut-turut).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response 200:**
+```json
+{
+  "nama_libur": "Idul Fitri 1447 Hijriah",
+  "tanggal_mulai": "2026-03-20",
+  "tanggal_selesai": "2026-03-21",
+  "total_hari": 2,
+  "sisa_hari": 214
+}
+```
+
+**Response (tidak ada data):**
+```json
+null
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| nama_libur | string | Nama cuti bersama |
+| tanggal_mulai | date | Tanggal mulai cuti bersama |
+| tanggal_selesai | date | Tanggal selesai cuti bersama (bergabung jika berturut-turut) |
+| total_hari | int | Total hari cuti bersama |
+| sisa_hari | int | Sisa hari hingga cuti bersama dimulai |
 
 ---
 

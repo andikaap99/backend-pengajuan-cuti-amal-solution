@@ -4,34 +4,26 @@ from typing import Optional, Literal
 from pydantic import BaseModel
 
 
-class LogCutiBase(BaseModel):
+class PengajuanCutiBase(BaseModel):
     tanggal_mulai: date
     tanggal_selesai: date
     pengganti: int
-    keterangan: str
+    keterangan_cuti: str
 
 
-class LogCutiCreate(LogCutiBase):
+class PengajuanCutiCreate(PengajuanCutiBase):
     pass
 
 
-class LogCutiUpdateStatus(BaseModel):
-    status: str
-    alasan_penolakan: Optional[str] = None
-
-
-class LogCutiOut(BaseModel):
+class PengajuanCutiOut(PengajuanCutiBase):
     id_log_cuti: int
     id_user: int
     jenis_cuti: str
-    tanggal_mulai: date
-    tanggal_selesai: date
-    keterangan_cuti: str
     status: Literal[
-        "menunggu_pm", "disetujui_pm", "ditolak_pm",
-        "menunggu_hr", "disetujui_hr", "ditolak_hr",
-        "menunggu_direktur", "disetujui_direktur", "ditolak_direktur"
-    ]
+            "menunggu_pm", "disetujui_pm", "ditolak_pm",
+            "menunggu_hr", "disetujui_hr", "ditolak_hr",
+            "menunggu_direktur", "disetujui_direktur", "ditolak_direktur"
+        ]
     alasan_penolakan: Optional[str] = None
     disetujui_pm: Optional[int] = None
     disetujui_hr: Optional[int] = None
@@ -42,11 +34,12 @@ class LogCutiOut(BaseModel):
 
     model_config = {"from_attributes": True}
 
+
 class RiwayatCutiOut(BaseModel):
     jenis_cuti: str
     tanggal_mulai: date
     tanggal_selesai: date
-    keterangan: str
+    keterangan_cuti: str
     nama_pengganti: str
     durasi: int
     status: Literal[
@@ -59,7 +52,7 @@ class RiwayatCutiOut(BaseModel):
 class PengajuanOngoingOut(BaseModel):
     jenis_cuti: str
     durasi: int
-    keterangan: str
+    keterangan_cuti: str
     tanggal_mulai: date
     tanggal_selesai: date
     status_sekarang: Literal[
@@ -74,3 +67,15 @@ class PengajuanOngoingOut(BaseModel):
     approved_at_hr: Optional[date] = None
     approved_at_direktur: Optional[date] = None
     alasan_penolakan: Optional[str] = None
+
+
+class RingkasanCutiOut(BaseModel):
+    periode_tahun: int
+    total_cuti: int
+    cuti_terpakai: int
+    sisa_cuti: int
+
+# class LogCutiUpdateStatus(BaseModel):
+#     status: str
+#     alasan_penolakan: Optional[str] = None
+

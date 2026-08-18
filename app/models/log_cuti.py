@@ -15,7 +15,7 @@ class LogCuti(Base):
     tanggal_mulai = Column(Date, nullable=False)
     tanggal_selesai = Column(Date, nullable=False)
     keterangan_cuti = Column(Text, nullable=False)
-    pengganti = Column(Integer, ForeignKey("users.id_user"), nullable=False)
+    pengganti = Column(Integer, ForeignKey("users.id_user"), nullable=True)
     status = Column(Enum(
         "menunggu_pm", "disetujui_pm", "ditolak_pm",
         "menunggu_hr", "disetujui_hr", "ditolak_hr",

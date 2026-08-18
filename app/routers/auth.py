@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import create_access_token, get_current_user, hash_password, verify_password, require_role
 from app.db import get_db
 from app.models.user import User
-from app.schemas.user import Token, UserOut, UserRegister, UserMeOut, UserRegisterAdmin, ChangePassword, ChangePasswordMessage, ExecutiveOut
+from app.schemas.user import Token, UserOut, UserRegister, UserMeOut, UserRegisterAdmin, ChangePassword, ChangePasswordMessage, ExecutiveOut, UpdateProfile, UpdateProfileMessage
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -134,3 +134,23 @@ async def get_all_users(
 ):
     result = await db.execute(select(User))
     return result.scalars().all()
+
+
+## route update profile
+@router.put("/profile", response_model=UpdateProfileMessage)
+async def update_profile(
+    data: UpdateProfile,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    if data.email is not None:
+        current_user.email = data.email
+    if data.no_telp is not None:
+        current_user.no_telp = data.no_telp
+    if data.tanggal_bergabung is not None:
+        current_user.tanggal_bergabung = data.tanggal_bergabung
+
+    db.add(current_user)
+    await db.commit()
+
+    return UpdateProfileMessage(detail="Profile berhasil diupdate")
