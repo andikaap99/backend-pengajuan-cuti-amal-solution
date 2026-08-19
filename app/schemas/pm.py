@@ -24,10 +24,24 @@ class PMDashboardTimOut(BaseModel):
 
 
 ## pesetujuan
-##
+## ringkasan
+class PMPersetujuanRingkasanTimOut(BaseModel):
+    tahun: int
+    total_pengajuan: int
+    menunggu_persetujuan: int
+    sedang_cuti: int
 
-##
-
+## card queue
+class PMPersetujuanQueueCutiOut(BaseModel):
+    nama: str
+    nama_departemen: str
+    jenis_cuti: str
+    tanggal_mulai: date
+    tanggal_selesai: date
+    durasi: int
+    pengganti: str
+    sisa_cuti: int
+    alasan: str
 
 ## history
 class PMHistoryPersetujuanOut(BaseModel):
@@ -41,29 +55,13 @@ class PMHistoryPersetujuanOut(BaseModel):
     status: str
 
 
-class PMPersetujuanRingkasanTimOut(BaseModel):
-    tahun: int
-    total_pengajuan: int
-    menunggu_persetujuan: int
-    sedang_cuti: int
-
-class PMPersetujuanQueueCutiOut(BaseModel):
-    nama: str
-    nama_departemen: str
-    jenis_cuti: str
-    tanggal_mulai: date
-    tanggal_selesai: date
-    durasi: int
-    pengganti: str
-    sisa_cuti: int
-    alasan: str
-
-
-
+## rekap cuti
+## ringkasan
 class PMRekapCutiRingkasanOut(BaseModel):
     total_anggota_aktif: int
     total_cuti_all: int
 
+## detail jatah
 class PMRekapCutiDetailJatah(BaseModel):
     nama: str
     nama_departemen: str
