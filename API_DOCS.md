@@ -791,6 +791,68 @@ Authorization: Bearer <token>
 
 ---
 
+### 7. Rekap Cuti Ringkasan Tim
+**GET** `/pm/rekap-cuti-ringkasan`
+
+Mendapatkan ringkasan rekap cuti tim (total anggota aktif dan total seluruh pengajuan cuti).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** pm
+
+**Response 200:**
+```json
+{
+  "total_anggota_aktif": 8,
+  "total_cuti_all": 24
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| total_anggota_aktif | int | Jumlah anggota tim yang aktif |
+| total_cuti_all | int | Total seluruh pengajuan cuti dari anggota tim |
+
+---
+
+### 8. Rekap Cuti Detail Jatah Per Anggota Tim
+**GET** `/pm/rekap-cuti-detail`
+
+Mendapatkan detail jatah cuti per anggota tim (penggunaan, sisa, dan status).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** pm
+
+**Response 200:**
+```json
+[
+  {
+    "nama": "John Doe",
+    "nama_departemen": "Engineering",
+    "penggunaan_cuti": 3,
+    "sisa_cuti": 9,
+    "status": "aktif"
+  }
+]
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| nama | string | Nama anggota tim |
+| nama_departemen | string | Nama departemen |
+| penggunaan_cuti | int | Jumlah cuti yang sudah terpakai |
+| sisa_cuti | int | Sisa jatah cuti |
+| status | string | Status ("aktif" atau "sedang cuti") |
+
+---
+
 ## Human Resources Endpoints
 
 ### 1. Get All HR
