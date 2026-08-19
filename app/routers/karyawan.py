@@ -7,7 +7,8 @@ from app.core.security import require_role
 from app.db import get_db
 from app.models.user import User
 from app.schemas.log_cuti import PengajuanCutiCreate, PengajuanCutiOut, RiwayatCutiOut, EmpDashboardPengajuanOngoingOut, EmpDashboardRingkasanOut
-from app.services.leave_service import create_pengajuan_cuti, get_my_cuti, get_my_ongoing_cuti, get_my_ringkasan_cuti
+from app.services.cuti_service import create_pengajuan_cuti, get_my_cuti, get_my_ongoing_cuti, get_my_ringkasan_cuti
+from app.services.minus_cuti_service import kurangi_jatah_cuti
 from app.services.kalender_service import get_my_kalender_cuti, get_kalender_cuti_tim
 from app.schemas.kalender import CutiSayaOut
 
@@ -60,6 +61,7 @@ async def get_kalender(
     current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
+    
     return await get_my_kalender_cuti(current_user.id_user, db)
 
 
@@ -68,4 +70,5 @@ async def get_kalender_tim(
     current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
+    
     return await get_kalender_cuti_tim(current_user.id_user, db)

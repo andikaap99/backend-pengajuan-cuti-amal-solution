@@ -6,7 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.log_cuti import LogCuti
 from app.models.user import User
 from app.schemas.log_cuti import PengajuanCutiOut, RiwayatCutiOut, EmpDashboardPengajuanOngoingOut, EmpDashboardRingkasanOut
-
+from app.services.minus_cuti_service import kurangi_jatah_cuti
+from app.services.ongoing_status_role_service import get_ongoing_statuses
 
 
 ## fungsi pengajuan cuti
@@ -119,21 +120,6 @@ async def get_my_ongoing_cuti(user_id: int, db: AsyncSession) -> list[EmpDashboa
     ]
 
 
-## fungsi untuk get status sesuai role
-def get_ongoing_statuses(user: User) -> list[str]:
-    match user.role:
-        case "karyawan":
-            if user.id_departemen != 1:
-                return ["menunggu_pm", "disetujui_pm", "menunggu_hr"]
-            else:
-                return ["menunggu_hr"]
-        case "pm":
-            return ["menunggu_hr"]
-        case "hr":
-            return ["menunggu_direktur"]
-    return []
-
-
 ## fungsi untuk menampilkan ringkasan cuti dashboard
 async def get_my_ringkasan_cuti(user_id: int, db: AsyncSession) -> EmpDashboardRingkasanOut:
     result_user = await db.execute(select(User).where(User.id_user == user_id))
@@ -145,23 +131,6 @@ async def get_my_ringkasan_cuti(user_id: int, db: AsyncSession) -> EmpDashboardR
         cuti_terpakai=user.total_cuti - user.sisa_cuti,
         sisa_cuti=user.sisa_cuti
     )
-
-
-## fungsi mengurangi jatah cuti
-async def kurangi_jatah_cuti(user_id: int, durasi: int, db: AsyncSession) -> None:
-    result = await db.execute(select(User).where(User.id_user == user_id))
-    user = result.scalar_one_or_none()
-
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User tidak ditemukan")
-
-    if user.sisa_cuti < durasi:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Sisa cuti tidak cukup")
-
-    user.sisa_cuti -= durasi
-    db.add(user)
-    await db.flush()
-
 
 async def kurangi_jatah_by_kalender():
     pass
