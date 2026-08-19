@@ -680,6 +680,117 @@ Authorization: Bearer <token>
 
 ---
 
+### 4. Dashboard Ringkasan PM
+**GET** `/pm/dashboard`
+
+Mendapatkan ringkasan dashboard PM (sisa cuti pribadi, total pengajuan tim, menunggu approval, acc, dan decline).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** pm
+
+**Response 200:**
+```json
+{
+  "sisa_cuti": 9,
+  "cuti_terpakai": 3,
+  "tim_menunggu_appoval": 2,
+  "total_pengajuan_tim": 10,
+  "total_pengajuan_acc_tim": 7,
+  "total_pengajuan_decline_tim": 1
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| sisa_cuti | int | Sisa jatah cuti PM |
+| cuti_terpakai | int | Jatah cuti yang sudah terpakai |
+| tim_menunggu_appoval | int | Pengajuan tim yang menunggu approval PM |
+| total_pengajuan_tim | int | Total pengajuan cuti dari seluruh anggota tim |
+| total_pengajuan_acc_tim | int | Total pengajuan tim yang disetujui (disetujui_pm) |
+| total_pengajuan_decline_tim | int | Total pengajuan tim yang ditolak (ditolak_pm) |
+
+---
+
+### 5. Dashboard Status Cuti Anggota Tim
+**GET** `/pm/dashboard-tim`
+
+Mendapatkan daftar status cuti anggota tim yang sedang dalam proses (belum selesai/ditolak).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** pm
+
+**Response 200:**
+```json
+[
+  {
+    "nama": "John Doe",
+    "jenis_cuti": "cuti tahunan",
+    "tanggal_mulai": "2026-08-20",
+    "tanggal_selesai": "2026-08-22",
+    "status": "menunggu_pm"
+  }
+]
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| nama | string | Nama anggota tim |
+| jenis_cuti | string | Jenis cuti |
+| tanggal_mulai | date | Tanggal mulai cuti |
+| tanggal_selesai | date | Tanggal selesai cuti |
+| status | string | Status pengajuan saat ini |
+
+---
+
+### 6. Riwayat Cuti Tim
+**GET** `/pm/history-cuti-tim`
+
+Mendapatkan riwayat seluruh pengajuan cuti anggota tim (semua status).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** pm
+
+**Response 200:**
+```json
+[
+  {
+    "tanggal_mulai": "2026-08-20",
+    "tanggal_selesai": "2026-08-22",
+    "nama": "John Doe",
+    "jenis_cuti": "cuti tahunan",
+    "keterangan": "Libur keluarga",
+    "durasi": 3,
+    "pengganti": "Budi Santoso",
+    "status": "disetujui_direktur"
+  }
+]
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| tanggal_mulai | date | Tanggal mulai cuti |
+| tanggal_selesai | date | Tanggal selesai cuti |
+| nama | string | Nama karyawan yang mengajukan |
+| jenis_cuti | string | Jenis cuti |
+| keterangan | string | Keterangan/alasan cuti |
+| durasi | int | Durasi cuti dalam hari |
+| pengganti | string | Nama pengganti (atau "-" jika tidak ada) |
+| status | string | Status pengajuan terkini |
+
+---
+
 ## Human Resources Endpoints
 
 ### 1. Get All HR

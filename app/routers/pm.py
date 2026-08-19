@@ -91,13 +91,3 @@ async def get_tim_dashboard(
 ):
 
     return await get_dashboard_tim(current_user.id_user, db)
-
-
-
-# ### history cuti tim
-# @router.get("/history-cuti-tim", response_model=list[PMHistoryPersetujuanOut])
-# async def get_history_cuti_tim_endpoint(
-#     current_user: Annotated[User, Depends(require_role("pm"))],
-#     db: Annotated[AsyncSession, Depends(get_db)]
-# ):
-#     return await get_history_cuti_tim(current_user.id_user, db)
