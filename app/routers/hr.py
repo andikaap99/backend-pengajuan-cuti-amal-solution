@@ -8,8 +8,10 @@ from app.core.security import require_role
 from app.db import get_db
 from app.models.user import User
 from app.schemas.user import ExecutiveOut
+from app.schemas.pengajuan import PersetujuanQueueCutiOut
 from app.schemas.hr import HRDashboardRingkasanOut, HRDashboardPersetujuanOut, HRListCutiKaryawanMendatangOut, HRRekapitulasiOut, HRLogCutiOut, HRDashboardMasterRingkasanOut, HRTabelKaryawanOut, HRTabelDepartemenOut, HRManajemenJatahCutiRingkasanOut, HRDaftarCutiKaryawanOut
 from app.services.hr_service import get_dashboard_ringkasan_hr, get_persetujuan, get_list_cuti_karyawan_mendatang, get_rekapitulasi_cuti, get_cuti_log, get_dashboard_master_ringkasan, get_tabel_karyawan, get_tabel_departemen, get_manajemen_jatah_cuti_ringkasan, get_daftar_cuti_karyawan
+from app.services.persetujuan_service import get_queue_card
 
 router = APIRouter(prefix="/hr", tags=["Human Resources"])
 
@@ -52,6 +54,15 @@ async def get_dashboard_persetujuan(
 ):
 
     return await get_persetujuan(db)
+
+## queue card
+@router.get("/queue-card", response_model=list[PersetujuanQueueCutiOut])
+async def get_queue(
+    current_user: Annotated[User, Depends(require_role("hr"))],
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
+
+    return await get_queue_card(current_user, db)
 
 
 ## rekap cuti

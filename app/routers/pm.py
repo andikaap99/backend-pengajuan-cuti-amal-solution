@@ -8,8 +8,10 @@ from app.core.security import require_role
 from app.db import get_db
 from app.models.user import User
 from app.schemas.user import ExecutiveOut
-from app.schemas.pm import PMDashboardRingkasanOut, PMDashboardTimOut, PMPersetujuanRingkasanTimOut, PMPersetujuanQueueCutiOut, PMHistoryPersetujuanOut, PMRekapCutiRingkasanOut, PMRekapCutiDetailJatah
-from app.services.pm_service import get_dashboard_ringkasan, get_dashboard_tim, get_ringkasan_tim, get_queue_card, get_history_cuti_tim, get_rekap_cuti_ringkasan, get_rekap_cuti_detail
+from app.schemas.pengajuan import PersetujuanQueueCutiOut
+from app.schemas.pm import PMDashboardRingkasanOut, PMDashboardTimOut, PMPersetujuanRingkasanTimOut, PMHistoryPersetujuanOut, PMRekapCutiRingkasanOut, PMRekapCutiDetailJatah
+from app.services.pm_service import get_dashboard_ringkasan, get_dashboard_tim, get_ringkasan_tim, get_history_cuti_tim, get_rekap_cuti_ringkasan, get_rekap_cuti_detail
+from app.services.persetujuan_service import get_queue_card
 
 router = APIRouter(prefix="/pm", tags=["Project Manager"])
 
@@ -56,13 +58,13 @@ async def get_ringkasan_tim_endpoint(
 
 
 ## queue card
-@router.get("/queue-card", response_model=list[PMPersetujuanQueueCutiOut])
+@router.get("/queue-card", response_model=list[PersetujuanQueueCutiOut])
 async def get_queue_card_endpoint(
     current_user: Annotated[User, Depends(require_role("pm"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     
-    return await get_queue_card(current_user.id_user, db)
+    return await get_queue_card(current_user, db)
 
 
 ## history pengajuan tim
@@ -72,7 +74,7 @@ async def get_cuti_tim_history(
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
 
-    return await get_history_cuti_tim(current_user.id_user, db)
+    return await get_history_cuti_tim(current_user, db)
 
 
 ## rekap cuti

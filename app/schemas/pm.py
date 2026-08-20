@@ -31,18 +31,6 @@ class PMPersetujuanRingkasanTimOut(BaseModel):
     menunggu_persetujuan: int
     sedang_cuti: int
 
-## card queue
-class PMPersetujuanQueueCutiOut(BaseModel):
-    nama: str
-    nama_departemen: str
-    jenis_cuti: str
-    tanggal_mulai: date
-    tanggal_selesai: date
-    durasi: int
-    pengganti: str
-    sisa_cuti: int
-    alasan: str
-
 ## history
 class PMHistoryPersetujuanOut(BaseModel):
     tanggal_mulai: date
