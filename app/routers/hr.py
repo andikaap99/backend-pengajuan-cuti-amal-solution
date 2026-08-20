@@ -74,19 +74,19 @@ async def get_log_cuti(
     return await get_cuti_log(db)
 
 
-### endpoint dashboard master ringkasan
-@router.get("/dashboard-master", response_model=HRDashboardMasterRingkasanOut)
-async def get_dashboard_master(
-    current_user: Annotated[User, Depends(require_role("hr"))],
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    return await get_dashboard_master_ringkasan(db)
-
-
 # ## data karyawan
 # ## ringkasan
 
 # ## tabel karyawan
+
+
+# ### endpoint dashboard master ringkasan
+# @router.get("/dashboard-master", response_model=HRDashboardMasterRingkasanOut)
+# async def get_dashboard_master(
+#     current_user: Annotated[User, Depends(require_role("hr"))],
+#     db: Annotated[AsyncSession, Depends(get_db)],
+# ):
+#     return await get_dashboard_master_ringkasan(db)
 
 
 # ### endpoint tabel karyawan

@@ -883,6 +883,181 @@ Authorization: Bearer <token>
 
 ---
 
+### 2. Dashboard Ringkasan HR
+**GET** `/hr/dashboard`
+
+Mendapatkan ringkasan dashboard HR (total karyawan, menunggu HR, cuti bulan ini, cuti bulan depan).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** hr
+
+**Response 200:**
+```json
+{
+  "total_karyawan": 25,
+  "menunggu_hr": 5,
+  "total_cuti_bulan_ini": 12,
+  "total_cuti_bulan_depan": 8
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| total_karyawan | int | Total seluruh karyawan |
+| menunggu_hr | int | Pengajuan yang menunggu persetujuan HR |
+| total_cuti_bulan_ini | int | Total cuti yang disetujui bulan ini |
+| total_cuti_bulan_depan | int | Total cuti yang disetujui bulan depan |
+
+---
+
+### 3. List Cuti Karyawan Mendatang
+**GET** `/hr/list-cuti-mendatang`
+
+Mendapatkan daftar cuti karyawan yang akan datang (tanggal mulai >= hari ini).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** hr
+
+**Response 200:**
+```json
+[
+  {
+    "nama": "Budi Santoso",
+    "jenis_cuti": "cuti tahunan",
+    "tanggal_mulai": "2026-08-25",
+    "tanggal_selesai": "2026-08-28",
+    "status": "menunggu_hr"
+  }
+]
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| nama | string | Nama karyawan |
+| jenis_cuti | string | Jenis cuti |
+| tanggal_mulai | date | Tanggal mulai cuti |
+| tanggal_selesai | date | Tanggal selesai cuti |
+| status | string | Status pengajuan saat ini |
+
+---
+
+### 4. Ringkasan Persetujuan
+**GET** `/hr/persetujuan`
+
+Mendapatkan ringkasan persetujuan cuti (total menunggu, disetujui bulan ini, ditolak bulan ini).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** hr
+
+**Response 200:**
+```json
+{
+  "total_menunggu": 5,
+  "disetujui_bulan_ini": 12,
+  "ditolak_bulan_ini": 3
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| total_menunggu | int | Total pengajuan yang menunggu persetujuan |
+| disetujui_bulan_ini | int | Total pengajuan yang disetujui bulan ini |
+| ditolak_bulan_ini | int | Total pengajuan yang ditolak bulan ini |
+
+---
+
+### 5. Rekapitulasi Cuti
+**GET** `/hr/rekapitulasi`
+
+Mendapatkan rekapitulasi cuti karyawan yang sedang berjalan (sudah disetujui direktur).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** hr
+
+**Response 200:**
+```json
+[
+  {
+    "nama": "Budi Santoso",
+    "departemen": "Engineering",
+    "tanggal_mulai": "2026-08-20",
+    "tanggal_selesai": "2026-08-22",
+    "total_cuti": 12,
+    "sisa_cuti": 7
+  }
+]
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| nama | string | Nama karyawan |
+| departemen | string | Nama departemen |
+| tanggal_mulai | date | Tanggal mulai cuti |
+| tanggal_selesai | date | Tanggal selesai cuti |
+| total_cuti | int | Total jatah cuti |
+| sisa_cuti | int | Sisa jatah cuti |
+
+---
+
+### 6. Log Cuti
+**GET** `/hr/log-cuti`
+
+Mendapatkan log seluruh pengajuan cuti (semua status).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** hr
+
+**Response 200:**
+```json
+[
+  {
+    "nama": "Budi Santoso",
+    "tanggal_mulai": "2026-08-20",
+    "tanggal_selesai": "2026-08-22",
+    "durasi": 3,
+    "jenis_cuti": "cuti tahunan",
+    "keterangan": "Cuti keluarga",
+    "pengganti": "Andi",
+    "status": "disetujui_direktur",
+    "hr_approved_by": "Siti HR"
+  }
+]
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| nama | string | Nama karyawan |
+| tanggal_mulai | date | Tanggal mulai cuti |
+| tanggal_selesai | date | Tanggal selesai cuti |
+| durasi | int | Durasi cuti dalam hari |
+| jenis_cuti | string | Jenis cuti |
+| keterangan | string | Keterangan cuti |
+| pengganti | string | Nama pengganti (atau "-") |
+| status | string | Status pengajuan terkini |
+| hr_approved_by | string \| null | Nama HR yang menyetujui |
+
+---
+
 ## Direktur Endpoints
 
 ### 1. Get All Direktur
