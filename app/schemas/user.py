@@ -79,3 +79,9 @@ class UpdateProfile(BaseModel):
 
 class UpdateProfileMessage(BaseModel):
     detail: str
+
+
+class ActivityOut(BaseModel):
+    jenis_aktivitas: str
+    keterangan: str
+    tanggal: date

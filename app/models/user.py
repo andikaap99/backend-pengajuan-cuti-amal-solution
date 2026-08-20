@@ -11,6 +11,7 @@ class User(Base):
     id_user = Column(Integer, primary_key=True, index=True)
     username = Column(String(20), nullable=False)
     nama = Column(String(100), nullable=False)
+    status = Column(Enum("Aktif", "Cuti"), default="Aktif")
     password = Column(Text, nullable=False)
     role = Column(Enum("karyawan", "pm", "hr", "direktur"), nullable=False)
     id_departemen = Column(Integer, ForeignKey("departemen.id_departemen"), nullable=False)

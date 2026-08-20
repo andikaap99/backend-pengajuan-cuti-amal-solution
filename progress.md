@@ -42,6 +42,158 @@
 
 ---
 
+# Progress - 20 Agustus 2026
+
+## HR Dashboard Endpoints
+
+### 1. Ringkasan
+**Endpoint:** `GET /hr/dashboard`
+
+**Output:**
+```json
+{
+  "total_karyawan": 25,
+  "menunggu_hr": 5,
+  "total_cuti_bulan_ini": 12,
+  "total_cuti_bulan_depan": 8
+}
+```
+
+### 2. List Cuti Karyawan Mendatang
+**Endpoint:** `GET /hr/list-cuti-mendatang`
+
+**Output:**
+```json
+[
+  {
+    "nama": "Budi Santoso",
+    "jenis_cuti": "cuti tahunan",
+    "tanggal_mulai": "2026-08-25",
+    "tanggal_selesai": "2026-08-28",
+    "status": "menunggu_hr"
+  }
+]
+```
+
+### 3. Ringkasan Persetujuan
+**Endpoint:** `GET /hr/dashboard-persetujuan`
+
+**Output:**
+```json
+{
+  "total_menunggu": 5,
+  "disetujui_bulan_ini": 12,
+  "ditolak_bulan_ini": 3
+}
+```
+
+### 4. Rekapitulasi
+**Endpoint:** `GET /hr/rekapitulasi`
+
+**Output:**
+```json
+[
+  {
+    "nama": "Budi Santoso",
+    "departemen": "Engineering",
+    "tanggal_mulai": "2026-08-20",
+    "tanggal_selesai": "2026-08-22",
+    "total_cuti": 12,
+    "sisa_cuti": 7
+  }
+]
+```
+
+### 5. Log Cuti
+**Endpoint:** `GET /hr/log-cuti`
+
+**Output:**
+```json
+[
+  {
+    "nama": "Budi Santoso",
+    "tanggal_mulai": "2026-08-20",
+    "tanggal_selesai": "2026-08-22",
+    "durasi": 3,
+    "jenis_cuti": "cuti tahunan",
+    "keterangan": "Cuti keluarga",
+    "pengganti": "Andi",
+    "status": "disetujui_direktur",
+    "hr_approved_by": "Siti HR"
+  }
+]
+```
+
+### 6. Dashboard Master
+**Endpoint:** `GET /hr/dashboard-master`
+
+**Output:**
+```json
+{
+  "total_karyawan": 25,
+  "total_departemen": 5,
+  "total_project_manager": 4
+}
+```
+
+### 7. Tabel Karyawan
+**Endpoint:** `GET /hr/tabel-karyawan`
+
+**Output:**
+```json
+[
+  {
+    "nama": "Budi Santoso",
+    "departemen": "Engineering",
+    "jabatan": "Karyawan",
+    "email": "budi@email.com",
+    "status": "Aktif"
+  }
+]
+```
+
+### 8. Tabel Departemen
+**Endpoint:** `GET /hr/tabel-departemen`
+
+**Output:**
+```json
+[
+  {
+    "nama_departemen": "Engineering",
+    "jumlah_karyawan": 10
+  }
+]
+```
+
+### 9. Manajemen Jatah Cuti
+**Endpoint:** `GET /hr/manajemen-jatah-cuti`
+
+**Output:**
+```json
+{
+  "total_karyawan_aktif": 20,
+  "total_karyawan_cuti": 5
+}
+```
+
+### 10. Daftar Cuti Karyawan
+**Endpoint:** `GET /hr/daftar-cuti-karyawan`
+
+**Output:**
+```json
+[
+  {
+    "nama": "Budi Santoso",
+    "nama_departemen": "Engineering",
+    "total_cuti": 12,
+    "cuti_terpakai": 5,
+    "sisa_cuti": 7
+  }
+]
+```
+
+---
+
 ## Daftar Endpoint Lengkap
 
 | Method | Endpoint | Deskripsi |
@@ -60,6 +212,16 @@
 | GET | `/pm` | Get semua PM |
 | GET | `/hr` | Get semua HR |
 | GET | `/direktur` | Get semua Direktur |
+| GET | `/hr/dashboard` | Dashboard ringkasan HR |
+| GET | `/hr/list-cuti-mendatang` | List cuti mendatang |
+| GET | `/hr/dashboard-persetujuan` | Ringkasan persetujuan |
+| GET | `/hr/rekapitulasi` | Rekapitulasi cuti |
+| GET | `/hr/log-cuti` | Log cuti |
+| GET | `/hr/dashboard-master` | Dashboard master |
+| GET | `/hr/tabel-karyawan` | Tabel karyawan |
+| GET | `/hr/tabel-departemen` | Tabel departemen |
+| GET | `/hr/manajemen-jatah-cuti` | Manajemen jatah cuti |
+| GET | `/hr/daftar-cuti-karyawan` | Daftar cuti karyawan |
 
 ---
 
