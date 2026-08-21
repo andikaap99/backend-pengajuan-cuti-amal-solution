@@ -6,7 +6,7 @@ from sqlalchemy.orm import selectinload
 from app.models.log_cuti import LogCuti
 from app.models.user import User
 from app.models.departemen import Departemen
-from app.schemas.hr import HRDashboardRingkasanOut, HRDashboardPersetujuanOut, HRListCutiKaryawanMendatangOut, HRRekapitulasiOut, HRLogCutiOut, HRDashboardMasterRingkasanOut, HRTabelKaryawanOut, HRTabelDepartemenOut, HRManajemenJatahCutiRingkasanOut, HRDaftarCutiKaryawanOut
+from app.schemas.hr import HRDashboardRingkasanOut, HRDashboardPersetujuanOut, HRListCutiKaryawanMendatangOut, HRRekapitulasiOut, HRLogCutiOut, HRRingkasanKaryawanOut, HRTabelKaryawanOut, HRTabelDepartemenOut, HRManajemenJatahCutiRingkasanOut, HRDaftarCutiKaryawanOut
 
 
 ## dashboard
@@ -160,144 +160,77 @@ async def get_cuti_log(db: AsyncSession) -> list[HRLogCutiOut]:
     ]
 
 
-
-
-### get dashboard persetujuan hr
-async def get_dashboard_persetujuan_hr(db: AsyncSession) -> HRDashboardPersetujuanOut:
-    today = date.today()
-    current_month = today.month
-    current_year = today.year
-
-    # total menunggu
-    result_menunggu = await db.execute(
-        select(func.count(LogCuti.id_log_cuti)).where(
-            LogCuti.status == "menunggu_hr"
-        )
-    )
-    total_menunggu = result_menunggu.scalar_one() or 0
-
-    # disetujui bulan ini
-    result_disetujui = await db.execute(
-        select(func.count(LogCuti.id_log_cuti)).where(
-            LogCuti.status == "disetujui_hr",
-            extract("month", LogCuti.approved_at_hr) == current_month,
-            extract("year", LogCuti.approved_at_hr) == current_year,
-        )
-    )
-    disetujui_bulan_ini = result_disetujui.scalar_one() or 0
-
-    # ditolak bulan ini
-    result_ditolak = await db.execute(
-        select(func.count(LogCuti.id_log_cuti)).where(
-            LogCuti.status == "ditolak_hr",
-            extract("month", LogCuti.approved_at_hr) == current_month,
-            extract("year", LogCuti.approved_at_hr) == current_year,
-        )
-    )
-    ditolak_bulan_ini = result_ditolak.scalar_one() or 0
-
-    return HRDashboardPersetujuanOut(
-        total_menunggu=total_menunggu,
-        disetujui_bulan_ini=disetujui_bulan_ini,
-        ditolak_bulan_ini=ditolak_bulan_ini,
-    )
-
-
-
-
-
-### get dashboard master ringkasan
-async def get_dashboard_master_ringkasan(db: AsyncSession) -> HRDashboardMasterRingkasanOut:
-    # total karyawan
+## data karyawan
+## ringkasan
+async def get_ringkasan_karyawan(db: AsyncSession) -> HRRingkasanKaryawanOut:
     result_karyawan = await db.execute(select(func.count(User.id_user)))
     total_karyawan = result_karyawan.scalar_one() or 0
 
-    # total departemen
-    result_dept = await db.execute(select(func.count(Departemen.id_departemen)))
-    total_departemen = result_dept.scalar_one() or 0
+    result_departemen = await db.execute(select(func.count(Departemen.id_departemen)))
+    total_departemen = result_departemen.scalar_one() or 0
 
-    # total project manager
-    result_pm = await db.execute(
-        select(func.count(User.id_user)).where(User.role == "pm")
-    )
+    result_pm = await db.execute(select(func.count(User.id_user)).where(User.role == "pm"))
     total_pm = result_pm.scalar_one() or 0
 
-    return HRDashboardMasterRingkasanOut(
+    return HRRingkasanKaryawanOut(
         total_karyawan=total_karyawan,
         total_departemen=total_departemen,
-        total_project_manager=total_pm,
+        total_project_manager=total_pm
     )
 
-
-### get tabel karyawan
+## tabel karyawan
 async def get_tabel_karyawan(db: AsyncSession) -> list[HRTabelKaryawanOut]:
-    result = await db.execute(
-        select(User).options(
-            selectinload(User.user_departemen)
-        ).order_by(User.nama.asc())
-    )
+    result = await db.execute(select(User).options(
+        selectinload(User.user_departemen)).order_by(User.nama.asc()))
     users = result.scalars().all()
 
     return [
         HRTabelKaryawanOut(
             nama=user.nama,
             departemen=user.user_departemen.nama_departemen,
-            jabatan=user.role.capitalize(),
+            jabatan=user.role,
             email=user.email,
-            status=user.status,
-        )
-        for user in users
+            status=user.status
+        ) for user in users
     ]
 
-
-### get tabel departemen
+## tabel departemen
 async def get_tabel_departemen(db: AsyncSession) -> list[HRTabelDepartemenOut]:
-    result = await db.execute(
-        select(Departemen).options(
-            selectinload(Departemen.user_departemen)
-        ).order_by(Departemen.nama_departemen.asc())
-    )
-    departemens = result.scalars().all()
+    result = await db.execute(select(Departemen).options(
+        selectinload(Departemen.user_departemen)
+    ).order_by(Departemen.nama_departemen.asc()))
+    departements = result.scalars().all()
 
     return [
         HRTabelDepartemenOut(
-            nama_departemen=dept.nama_departemen,
-            jumlah_karyawan=len(dept.user_departemen),
-        )
-        for dept in departemens
+            nama_departemen=departement.nama_departemen,
+            jumlah_karyawan=len(departement.user_departemen)
+        ) for departement in departements
     ]
 
 
-### get manajemen jatah cuti ringkasan
-async def get_manajemen_jatah_cuti_ringkasan(db: AsyncSession) -> HRManajemenJatahCutiRingkasanOut:
-    today = date.today()
+## manajemen jatah cuti
+## ringkasan
+async def get_manajemen_jatah_cuti(db: AsyncSession) -> HRManajemenJatahCutiRingkasanOut:
+    result_karyawan_aktif = await db.execute(select(
+        func.count(User.id_user)).where(User.status == "Aktif"))
+    karyawan_aktif = result_karyawan_aktif.scalar_one() or 0
 
-    # total karyawan aktif (status Aktif)
-    result_aktif = await db.execute(
-        select(func.count(User.id_user)).where(User.status == "Aktif")
-    )
-    total_karyawan_aktif = result_aktif.scalar_one() or 0
-
-    # total karyawan sedang cuti (status Cuti)
-    result_cuti = await db.execute(
-        select(func.count(User.id_user)).where(User.status == "Cuti")
-    )
-    total_karyawan_cuti = result_cuti.scalar_one() or 0
+    result_karyawan_cuti = await db.execute(select(
+        func.count(User.id_user)).where(User.status == "Cuti"))
+    karyawan_cuti = result_karyawan_cuti.scalar_one() or 0
 
     return HRManajemenJatahCutiRingkasanOut(
-        total_karyawan_aktif=total_karyawan_aktif,
-        total_karyawan_cuti=total_karyawan_cuti,
+        total_karyawan_aktif=karyawan_aktif,
+        total_karyawan_cuti=karyawan_cuti
     )
 
-
-### get daftar cuti karyawan
+## daftar cuti karyawan
 async def get_daftar_cuti_karyawan(db: AsyncSession) -> list[HRDaftarCutiKaryawanOut]:
-    result = await db.execute(
-        select(User).options(
-            selectinload(User.user_departemen)
-        ).where(User.role.in_(["karyawan", "pm", "hr"]))
-        .order_by(User.nama.asc())
-    )
+    roles = ["karyawan", "pm", "hr"]
+
+    result = await db.execute(select(User).options(
+        selectinload(User.user_departemen)).where(User.role.in_(roles)))
     users = result.scalars().all()
 
     return [
@@ -306,7 +239,6 @@ async def get_daftar_cuti_karyawan(db: AsyncSession) -> list[HRDaftarCutiKaryawa
             nama_departemen=user.user_departemen.nama_departemen,
             total_cuti=user.total_cuti,
             cuti_terpakai=user.total_cuti - user.sisa_cuti,
-            sisa_cuti=user.sisa_cuti,
-        )
-        for user in users
+            sisa_cuti=user.sisa_cuti
+        ) for user in users
     ]

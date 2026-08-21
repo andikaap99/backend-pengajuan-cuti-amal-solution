@@ -9,8 +9,8 @@ from app.db import get_db
 from app.models.user import User
 from app.schemas.user import ExecutiveOut
 from app.schemas.pengajuan import PersetujuanQueueCutiOut
-from app.schemas.hr import HRDashboardRingkasanOut, HRDashboardPersetujuanOut, HRListCutiKaryawanMendatangOut, HRRekapitulasiOut, HRLogCutiOut, HRDashboardMasterRingkasanOut, HRTabelKaryawanOut, HRTabelDepartemenOut, HRManajemenJatahCutiRingkasanOut, HRDaftarCutiKaryawanOut
-from app.services.hr_service import get_dashboard_ringkasan_hr, get_persetujuan, get_list_cuti_karyawan_mendatang, get_rekapitulasi_cuti, get_cuti_log, get_dashboard_master_ringkasan, get_tabel_karyawan, get_tabel_departemen, get_manajemen_jatah_cuti_ringkasan, get_daftar_cuti_karyawan
+from app.schemas.hr import HRDashboardRingkasanOut, HRDashboardPersetujuanOut, HRListCutiKaryawanMendatangOut, HRRekapitulasiOut, HRLogCutiOut, HRRingkasanKaryawanOut, HRTabelKaryawanOut, HRTabelDepartemenOut, HRManajemenJatahCutiRingkasanOut, HRDaftarCutiKaryawanOut
+from app.services.hr_service import get_dashboard_ringkasan_hr, get_persetujuan, get_list_cuti_karyawan_mendatang, get_rekapitulasi_cuti, get_cuti_log, get_ringkasan_karyawan, get_tabel_karyawan, get_tabel_departemen, get_manajemen_jatah_cuti, get_daftar_cuti_karyawan
 from app.services.persetujuan_service import get_queue_card
 
 router = APIRouter(prefix="/hr", tags=["Human Resources"])
@@ -87,50 +87,48 @@ async def get_log_cuti(
 
 # ## data karyawan
 # ## ringkasan
+@router.get("/ringkasan-karyawan", response_model=HRRingkasanKaryawanOut)
+async def get_ringkasan_data_karyawan(
+    current_user: Annotated[User, Depends(require_role("hr"))],
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
 
-# ## tabel karyawan
+    return await get_ringkasan_karyawan(db)
 
+## tabel karyawan
+@router.get("/tabel-karyawan", response_model=list[HRTabelKaryawanOut])
+async def get_data_tabel_karyawan(
+    current_user: Annotated[User, Depends(require_role("hr"))],
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
 
-# ### endpoint dashboard master ringkasan
-# @router.get("/dashboard-master", response_model=HRDashboardMasterRingkasanOut)
-# async def get_dashboard_master(
-#     current_user: Annotated[User, Depends(require_role("hr"))],
-#     db: Annotated[AsyncSession, Depends(get_db)],
-# ):
-#     return await get_dashboard_master_ringkasan(db)
+    return await get_tabel_karyawan(db)
 
+## tabel departemen
+@router.get("/tabel-departemen", response_model=list[HRTabelDepartemenOut])
+async def get_data_tabel_departemen(
+    current_user: Annotated[User, Depends(require_role("hr"))],
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
 
-# ### endpoint tabel karyawan
-# @router.get("/tabel-karyawan", response_model=list[HRTabelKaryawanOut])
-# async def get_tabel_karyawan_endpoint(
-#     current_user: Annotated[User, Depends(require_role("hr"))],
-#     db: Annotated[AsyncSession, Depends(get_db)],
-# ):
-#     return await get_tabel_karyawan(db)
-
-
-# ### endpoint tabel departemen
-# @router.get("/tabel-departemen", response_model=list[HRTabelDepartemenOut])
-# async def get_tabel_departemen_endpoint(
-#     current_user: Annotated[User, Depends(require_role("hr"))],
-#     db: Annotated[AsyncSession, Depends(get_db)],
-# ):
-#     return await get_tabel_departemen(db)
+    return await get_tabel_departemen(db)
 
 
-# ### endpoint manajemen jatah cuti ringkasan
-# @router.get("/manajemen-jatah-cuti", response_model=HRManajemenJatahCutiRingkasanOut)
-# async def get_manajemen_jatah_cuti(
-#     current_user: Annotated[User, Depends(require_role("hr"))],
-#     db: Annotated[AsyncSession, Depends(get_db)],
-# ):
-#     return await get_manajemen_jatah_cuti_ringkasan(db)
+## manajemen jatah cuti
+## ringkasan
+@router.get("/manajemen-jatah-cuti", response_model=HRManajemenJatahCutiRingkasanOut)
+async def get_data_manajemen_jatah_cuti(
+    current_user: Annotated[User, Depends(require_role("hr"))],
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
 
+    return await get_manajemen_jatah_cuti(db)
 
-# ### endpoint daftar cuti karyawan
-# @router.get("/daftar-cuti-karyawan", response_model=list[HRDaftarCutiKaryawanOut])
-# async def get_daftar_cuti_karyawan_endpoint(
-#     current_user: Annotated[User, Depends(require_role("hr"))],
-#     db: Annotated[AsyncSession, Depends(get_db)],
-# ):
-#     return await get_daftar_cuti_karyawan(db)
+## daftar cuti karyawan
+@router.get("/daftar-cuti-karyawan", response_model=list[HRDaftarCutiKaryawanOut])
+async def get_data_cuti_karyawan(
+    current_user: Annotated[User, Depends(require_role("hr"))],
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
+
+    return await get_daftar_cuti_karyawan(db)

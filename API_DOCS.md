@@ -1058,6 +1058,161 @@ Authorization: Bearer <token>
 
 ---
 
+### 7. Ringkasan Data Karyawan
+**GET** `/hr/ringkasan-karyawan`
+
+Mendapatkan ringkasan data karyawan (total karyawan, total departemen, total PM).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** hr
+
+**Response 200:**
+```json
+{
+  "total_karyawan": 25,
+  "total_departemen": 5,
+  "total_project_manager": 4
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| total_karyawan | int | Total seluruh karyawan |
+| total_departemen | int | Total jumlah departemen |
+| total_project_manager | int | Total jumlah Project Manager |
+
+---
+
+### 8. Tabel Karyawan
+**GET** `/hr/tabel-karyawan`
+
+Mendapatkan daftar seluruh karyawan dalam bentuk tabel.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** hr
+
+**Response 200:**
+```json
+[
+  {
+    "nama": "Budi Santoso",
+    "departemen": "Engineering",
+    "jabatan": "karyawan",
+    "email": "budi@email.com",
+    "status": "Aktif"
+  }
+]
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| nama | string | Nama karyawan |
+| departemen | string | Nama departemen |
+| jabatan | string | Role/jabatan (karyawan, pm, hr, direktur) |
+| email | string \| null | Alamat email |
+| status | string | Status karyawan (Aktif / Cuti) |
+
+---
+
+### 9. Tabel Departemen
+**GET** `/hr/tabel-departemen`
+
+Mendapatkan daftar seluruh departemen beserta jumlah karyawan di masing-masing.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** hr
+
+**Response 200:**
+```json
+[
+  {
+    "nama_departemen": "Engineering",
+    "jumlah_karyawan": 10
+  }
+]
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| nama_departemen | string | Nama departemen |
+| jumlah_karyawan | int | Jumlah karyawan di departemen tersebut |
+
+---
+
+### 10. Manajemen Jatah Cuti Ringkasan
+**GET** `/hr/manajemen-jatah-cuti`
+
+Mendapatkan ringkasan manajemen jatah cuti (total karyawan aktif dan sedang cuti).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** hr
+
+**Response 200:**
+```json
+{
+  "total_karyawan_aktif": 20,
+  "total_karyawan_cuti": 5
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| total_karyawan_aktif | int | Jumlah karyawan dengan status Aktif |
+| total_karyawan_cuti | int | Jumlah karyawan dengan status Cuti |
+
+---
+
+### 11. Daftar Cuti Karyawan
+**GET** `/hr/daftar-cuti-karyawan`
+
+Mendapatkan daftar jatah cuti seluruh karyawan (total, terpakai, sisa).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** hr
+
+**Response 200:**
+```json
+[
+  {
+    "nama": "Budi Santoso",
+    "nama_departemen": "Engineering",
+    "total_cuti": 12,
+    "cuti_terpakai": 5,
+    "sisa_cuti": 7
+  }
+]
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| nama | string | Nama karyawan |
+| nama_departemen | string | Nama departemen |
+| total_cuti | int | Total jatah cuti per tahun |
+| cuti_terpakai | int | Jumlah cuti yang sudah terpakai |
+| sisa_cuti | int | Sisa jatah cuti |
+
+---
+
 ## Direktur Endpoints
 
 ### 1. Get All Direktur

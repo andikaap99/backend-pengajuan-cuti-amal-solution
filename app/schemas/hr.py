@@ -56,27 +56,15 @@ class HRLogCutiOut(BaseModel):
         ]
     hr_approved_by: Optional[str] = None
 
-### HRListCutiKaryawanMendatangOut
-class HRListCutiKaryawanMendatangOut(BaseModel):
-    nama: str
-    jenis_cuti: str
-    tanggal_mulai: date
-    tanggal_selesai: date
-    status: Literal[
-        "menunggu_pm", "disetujui_pm", "ditolak_pm",
-        "menunggu_hr", "disetujui_hr", "ditolak_hr",
-        "menunggu_direktur", "disetujui_direktur", "ditolak_direktur"
-    ]
 
-
-### HRDashboardMasterRingkasanOut
-class HRDashboardMasterRingkasanOut(BaseModel):
+## data karyawan
+## ringkasan
+class HRRingkasanKaryawanOut(BaseModel):
     total_karyawan: int
     total_departemen: int
     total_project_manager: int
 
-
-### HRTabelKaryawanOut
+## tabel karyawan
 class HRTabelKaryawanOut(BaseModel):
     nama: str
     departemen: str
@@ -84,20 +72,18 @@ class HRTabelKaryawanOut(BaseModel):
     email: Optional[str] = None
     status: str
 
-
-### HRTabelDepartemenOut
+## tabel departemen
 class HRTabelDepartemenOut(BaseModel):
     nama_departemen: str
     jumlah_karyawan: int
 
 
-### HRManajemenJatahCutiRingkasanOut
+## manajemen jatah cuti
+## ringkasan
 class HRManajemenJatahCutiRingkasanOut(BaseModel):
     total_karyawan_aktif: int
     total_karyawan_cuti: int
 
-
-### HRDaftarCutiKaryawanOut
 class HRDaftarCutiKaryawanOut(BaseModel):
     nama: str
     nama_departemen: str
