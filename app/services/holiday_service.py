@@ -83,3 +83,36 @@ async def get_next_cuti_bersama(db: AsyncSession) -> NextCutiBersamaOut | None:
         tanggal_selesai=tanggal_selesai,
         total_hari=total_hari,
     )
+
+
+async def get_next_pending_holiday_days(db: AsyncSession) -> int:
+    """ambil total hari cuti bersama yang belum diproses (sudah_dikurangi = False)"""
+    from datetime import timedelta
+
+    today = date.today()
+
+    result = await db.execute(
+        select(Holiday)
+        .where(
+            Holiday.is_cuti_bersama == True,
+            Holiday.tanggal >= today,
+            Holiday.sudah_dikurangi == False,
+        )
+        .order_by(Holiday.tanggal.asc())
+    )
+    holidays = result.scalars().all()
+
+    if not holidays:
+        return 0
+
+    # hitung total hari cuti bersama berurutan
+    tanggal_mulai = holidays[0].tanggal
+    tanggal_selesai = holidays[0].tanggal
+
+    for h in holidays[1:]:
+        if h.tanggal == tanggal_selesai + timedelta(days=1):
+            tanggal_selesai = h.tanggal
+        else:
+            break
+
+    return (tanggal_selesai - tanggal_mulai).days + 1

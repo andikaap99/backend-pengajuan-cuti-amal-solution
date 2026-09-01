@@ -23,18 +23,18 @@ class LogCuti(Base):
         ), nullable=False)
     tanggal_pengajuan = Column(Date, default=date.today)
     alasan_penolakan = Column(Text, nullable=True)
-    disetujui_pm = Column(ForeignKey("users.id_user"), nullable=True)
-    disetujui_hr = Column(ForeignKey("users.id_user"), nullable=True)
-    disetujui_direktur = Column(ForeignKey("users.id_user"), nullable=True)
-    approved_at_pm = Column(Date, nullable=True)
-    approved_at_hr = Column(Date, nullable=True)
-    approved_at_direktur = Column(Date, nullable=True)
+    diproses_pm = Column(ForeignKey("users.id_user"), nullable=True)
+    diproses_hr = Column(ForeignKey("users.id_user"), nullable=True)
+    diproses_direktur = Column(ForeignKey("users.id_user"), nullable=True)
+    processed_at_pm = Column(Date, nullable=True)
+    processed_at_hr = Column(Date, nullable=True)
+    processed_at_direktur = Column(Date, nullable=True)
 
     ## relasi dari tabel ini
     user_log = relationship("User", foreign_keys=[id_user], back_populates="user_log")
     user_backup = relationship("User", foreign_keys=[pengganti], back_populates="user_backup")
-    pm_log = relationship("User", foreign_keys=[disetujui_pm], back_populates="pm_log")
-    hr_log = relationship("User", foreign_keys=[disetujui_hr], back_populates="hr_log")
-    direktur_log = relationship("User", foreign_keys=[disetujui_direktur], back_populates="direktur_log")
+    pm_log = relationship("User", foreign_keys=[diproses_pm], back_populates="pm_log")
+    hr_log = relationship("User", foreign_keys=[diproses_hr], back_populates="hr_log")
+    direktur_log = relationship("User", foreign_keys=[diproses_direktur], back_populates="direktur_log")
 
     ## relasi ke tabel lain

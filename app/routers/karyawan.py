@@ -13,6 +13,8 @@ from app.services.kalender_service import get_my_kalender_cuti, get_kalender_cut
 from app.schemas.kalender import CutiSayaOut 
 from app.schemas.user import ActivityOut
 from app.services.activity_service import get_recent_activities
+from app.schemas.penambahan_kerja import PenambahanKerjaCreate, PenambahanKerjaOut
+from app.services.penambahan_kerja_service import create_penambahan_kerja, get_my_penambahan_kerja
 
 router = APIRouter(prefix="/karyawan", tags=["Karyawan"])
 
@@ -31,7 +33,7 @@ async def submit_cuti(
 ## routes liat riwayat cuti all
 @router.get("/cuti", response_model=list[RiwayatCutiOut])
 async def get_all_cuti(
-    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr"))],
+    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr", "direktur"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     
@@ -41,7 +43,7 @@ async def get_all_cuti(
 ## routes liat riwayat cuti yang ongoing (belum acc)
 @router.get("/cuti/ongoing", response_model=list[EmpDashboardPengajuanOngoingOut])
 async def get_all_cuti_ongoing(
-    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr"))],
+    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr", "direktur"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
 
@@ -51,7 +53,7 @@ async def get_all_cuti_ongoing(
 ## routes liat ringkasan cuti dashboard
 @router.get("/cuti/ringkasan", response_model=EmpDashboardRingkasanOut)
 async def get_ringkasan_cuti(
-    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr"))],
+    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr", "direktur"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
 
@@ -69,7 +71,7 @@ async def get_kalender(
 
 @router.get("/kalender-cuti-tim", response_model=list[CutiSayaOut])
 async def get_kalender_tim(
-    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr"))],
+    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr", "direktur"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     
@@ -78,8 +80,28 @@ async def get_kalender_tim(
 
 @router.get("/activities", response_model=list[ActivityOut])
 async def get_activities_recent(
-    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr"))],
+    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr", "direktur"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ): 
 
     return await get_recent_activities(current_user.id_user, db)
+
+
+## penambahan kerja
+@router.post("/penambahan-kerja", response_model=PenambahanKerjaOut)
+async def submit_penambahan_kerja(
+    current_user: Annotated[User, Depends(require_role("karyawan"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    data: PenambahanKerjaCreate
+):
+    return await create_penambahan_kerja(current_user.id_user, data.tanggal_mulai, data.tanggal_selesai, data.keterangan, db)
+
+
+## get pengajuan penambahan kerja
+@router.get("/penambahan-kerja", response_model=list[PenambahanKerjaOut])
+async def get_riwayat_penambahan_kerja(
+    current_user: Annotated[User, Depends(require_role("karyawan", "pm"))],
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
+
+    return await get_my_penambahan_kerja(current_user.id_user, db)

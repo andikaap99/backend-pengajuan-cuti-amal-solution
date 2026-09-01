@@ -9,3 +9,6 @@ python-multipart
 pydantic-settings
 python-dotenv
 httpx
+apscheduler
+pytz
+openpyxl

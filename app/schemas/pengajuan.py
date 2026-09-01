@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 ## card queue
 class PersetujuanQueueCutiOut(BaseModel):
+    id_log_cuti: int
     nama: str
     nama_departemen: str
     jenis_cuti: str

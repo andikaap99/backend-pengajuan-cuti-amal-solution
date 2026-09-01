@@ -13,3 +13,4 @@ class Holiday(Base):
     tanggal = Column(Date)
     is_cuti_bersama = Column(Boolean)
     tahun = Column(Integer)
+    sudah_dikurangi = Column(Boolean, default=False)

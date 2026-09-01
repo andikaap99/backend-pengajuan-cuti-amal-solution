@@ -81,6 +81,9 @@ async def register(
         role=data.role.lower(),
         id_departemen=data.id_departemen,
         id_pm=data.id_pm,
+        email=data.email,
+        no_telp=data.no_telp,
+        tanggal_bergabung=data.tanggal_bergabung,
     )
     db.add(user)
     await db.commit()

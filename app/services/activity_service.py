@@ -2,6 +2,7 @@ from datetime import date
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.log_cuti import LogCuti
 from app.models.user import User
@@ -34,24 +35,24 @@ async def get_recent_activities(user_id: int, db: AsyncSession) -> list[Activity
         # tentukan kolom berdasarkan role
         match user.role:
             case "pm":
-                kolom_approve = LogCuti.disetujui_pm
-                kolom_tanggal = LogCuti.approved_at_pm
+                kolom_approve = LogCuti.diproses_pm
+                kolom_tanggal = LogCuti.processed_at_pm
                 status_acc = "disetujui_pm"
                 status_decline = "ditolak_pm"
             case "hr":
-                kolom_approve = LogCuti.disetujui_hr
-                kolom_tanggal = LogCuti.approved_at_hr
+                kolom_approve = LogCuti.diproses_hr
+                kolom_tanggal = LogCuti.processed_at_hr
                 status_acc = "disetujui_hr"
                 status_decline = "ditolak_hr"
             case "direktur":
-                kolom_approve = LogCuti.disetujui_direktur
-                kolom_tanggal = LogCuti.approved_at_direktur
+                kolom_approve = LogCuti.diproses_direktur
+                kolom_tanggal = LogCuti.processed_at_direktur
                 status_acc = "disetujui_direktur"
                 status_decline = "ditolak_direktur"
 
         # query log yang di-acc
         result_acc = await db.execute(
-            select(LogCuti).where(
+            select(LogCuti).options(selectinload(LogCuti.user_log)).where(
                 kolom_approve == user_id,
                 LogCuti.status == status_acc,
             )
@@ -67,7 +68,7 @@ async def get_recent_activities(user_id: int, db: AsyncSession) -> list[Activity
 
         # query log yang ditolak
         result_decline = await db.execute(
-            select(LogCuti).where(
+            select(LogCuti).options(selectinload(LogCuti.user_log)).where(
                 kolom_approve == user_id,
                 LogCuti.status == status_decline,
             )

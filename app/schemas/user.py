@@ -19,6 +19,9 @@ class UserRegisterAdmin(BaseModel):
     role: str
     id_departemen: int
     id_pm: int | None = None
+    email: str | None = None
+    no_telp: str | None = None
+    tanggal_bergabung: date | None = None
 
 ## apa aja yang ditampilin waktu register berhasil
 class UserOut(BaseModel):

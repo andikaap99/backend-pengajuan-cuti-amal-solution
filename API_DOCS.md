@@ -576,6 +576,283 @@ Authorization: Bearer <token>
 
 ---
 
+### 7. Aktivitas Terbaru
+**GET** `/karyawan/activities`
+
+Melihat 3 aktivitas terbaru (pengajuan, persetujuan, penolakan).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** karyawan, pm, hr, direktur
+
+**Response 200:**
+```json
+[
+  {
+    "jenis_aktivitas": "Pengajuan Cuti",
+    "keterangan": "Mengajukan cuti selama 3 hari",
+    "tanggal": "2026-08-20"
+  },
+  {
+    "jenis_aktivitas": "Cuti Disetujui PM",
+    "keterangan": "Pengajuan cuti disetujui oleh Airin",
+    "tanggal": "2026-08-19"
+  }
+]
+```
+
+---
+
+### 8. Pengajuan Penambahan Kerja
+**POST** `/karyawan/penambahan-kerja`
+
+Mengajukan penambahan kerja di hari cuti bersama (hanya karyawan dept 3).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** karyawan
+
+**Request Body (JSON):**
+```json
+{
+  "tanggal_mulai": "2026-03-20",
+  "tanggal_selesai": "2026-03-21",
+  "keterangan": "Project deadline"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| tanggal_mulai | date | Ya | Tanggal mulai kerja |
+| tanggal_selesai | date | Ya | Tanggal selesai kerja |
+| keterangan | string | Ya | Keterangan/alasan |
+
+**Response 200:**
+```json
+{
+  "id_pengajuan_kerja": 1,
+  "id_user": 7,
+  "tanggal_mulai": "2026-03-20",
+  "tanggal_selesai": "2026-03-21",
+  "keterangan_pengajuan": "Project deadline",
+  "status": "menunggu_pm",
+  "diproses_pm": null,
+  "processed_at_pm": null
+}
+```
+
+**Error 400:**
+```json
+{
+  "detail": "Hanya karyawan dept 3 yang bisa mengajukan penambahan kerja"
+}
+```
+
+---
+
+### 9. Riwayat Penambahan Kerja
+**GET** `/karyawan/penambahan-kerja`
+
+Melihat riwayat pengajuan penambahan kerja milik user.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** karyawan, pm
+
+**Response 200:**
+```json
+[
+  {
+    "id_pengajuan_kerja": 1,
+    "id_user": 7,
+    "tanggal_mulai": "2026-03-20",
+    "tanggal_selesai": "2026-03-21",
+    "keterangan_pengajuan": "Project deadline",
+    "status": "disetujui_pm",
+    "diproses_pm": 3,
+    "processed_at_pm": "2026-03-19"
+  }
+]
+```
+
+---
+
+## Approval Endpoints
+
+### 1. Approval Queue
+**GET** `/approval/approval-queue`
+
+Mendapatkan daftar pengajuan cuti yang menunggu persetujuan (berdasarkan role).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** pm, hr, direktur
+
+**Response 200:**
+```json
+[
+  {
+    "id_log_cuti": 1,
+    "nama": "Rizza Alyda Yahya",
+    "nama_departemen": "Marketing",
+    "jenis_cuti": "cuti tahunan",
+    "tanggal_mulai": "2026-09-01",
+    "tanggal_selesai": "2026-09-03",
+    "durasi": 3,
+    "pengganti": "Rissa",
+    "sisa_cuti": 8,
+    "alasan": "Traveling dengan teman"
+  }
+]
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id_log_cuti | int | ID log cuti |
+| nama | string | Nama pemohon |
+| nama_departemen | string | Departemen pemohon |
+| jenis_cuti | string | Jenis cuti |
+| tanggal_mulai | date | Tanggal mulai cuti |
+| tanggal_selesai | date | Tanggal selesai cuti |
+| durasi | int | Durasi cuti dalam hari |
+| pengganti | string | Nama pengganti (atau "Tidak ada") |
+| sisa_cuti | int | Sisa cuti pemohon |
+| alasan | string | Keterangan cuti |
+
+---
+
+### 2. Approve/Decline Cuti
+**POST** `/approval/approval{log_cuti_id}`
+
+Menyetujui atau menolak pengajuan cuti.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** pm, hr, direktur
+
+**Request Body (JSON):**
+```json
+{
+  "action": "acc",
+  "alasan": null
+}
+```
+
+atau
+
+```json
+{
+  "action": "decline",
+  "alasan": "Bertepatan dengan sprint deadline"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| action | string | Ya | "acc" atau "decline" |
+| alasan | string | Tidak | Alasan penolakan (wajib jika decline) |
+
+**Response 200:**
+```json
+{
+  "detail": "Pengajuan cuti berhasil disetujui",
+  "status_baru": "disetujui_pm"
+}
+```
+
+**Error 400:**
+```json
+{
+  "detail": "Alasan penolakan wajib diisi"
+}
+```
+
+```json
+{
+  "detail": "Tidak ada pengajuan yang menunggu persetujuan Anda"
+}
+```
+
+---
+
+### 3. Queue Penambahan Kerja
+**GET** `/approval/penambahan-kerja-queue`
+
+Mendapatkan daftar pengajuan penambahan kerja yang menunggu persetujuan PM.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** pm
+
+**Response 200:**
+```json
+[
+  {
+    "id_pengajuan_kerja": 1,
+    "nama": "Rissa",
+    "nama_departemen": "Design",
+    "tanggal_mulai": "2026-03-20",
+    "tanggal_selesai": "2026-03-21",
+    "keterangan": "Project deadline"
+  }
+]
+```
+
+---
+
+### 4. Approve/Decline Penambahan Kerja
+**POST** `/approval/penambahan-kerja/{log_id}`
+
+Menyetujui atau menolak pengajuan penambahan kerja.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** pm
+
+**Request Body (JSON):**
+```json
+{
+  "action": "acc",
+  "alasan": null
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| action | string | Ya | "acc" atau "decline" |
+| alasan | string | Tidak | Alasan penolakan |
+
+**Response 200:**
+```json
+{
+  "detail": "Pengajuan penambahan kerja berhasil disetujui",
+  "status_baru": "disetujui_pm"
+}
+```
+
+---
+
 ## Project Manager Endpoints
 
 ### 1. Get All PM
@@ -1213,6 +1490,226 @@ Authorization: Bearer <token>
 
 ---
 
+### 12. Export Cuti ke Excel
+**GET** `/hr/export-cuti`
+
+Mendownload rekap cuti dalam format Excel (.xlsx).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** hr, direktur
+
+**Query Parameters:**
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| year | int | Tidak | Tahun periode (default: tahun ini) |
+
+**Response 200:**
+File `.xlsx` dengan Content-Type `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
+
+---
+
+### 13. Tambah Sisa Cuti
+**POST** `/hr/tambah-cuti`
+
+Menambah jatah cuti karyawan (HR/Direktur).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** hr, direktur
+
+**Request Body (JSON):**
+```json
+{
+  "id_user": 4,
+  "jumlah_hari": 2,
+  "keterangan": "Reward performa"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| id_user | int | Ya | ID karyawan |
+| jumlah_hari | int | Ya | Jumlah hari yang ditambahkan |
+| keterangan | string | Ya | Keterangan penambahan |
+
+**Response 200:**
+```json
+{
+  "id_log_cuti_ekstra": 1,
+  "id_user": 4,
+  "id_penambah": 2,
+  "jumlah_hari": 2,
+  "keterangan": "Reward performa",
+  "added_at": "2026-09-01",
+  "tahun": 2026
+}
+```
+
+---
+
+### 14. Edit Data Karyawan
+**PUT** `/hr/karyawan/{user_id}`
+
+Mengupdate data karyawan (semua field optional).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** hr, direktur
+
+**Request Body (JSON):**
+```json
+{
+  "nama": "Rizza Alyda",
+  "role": "karyawan",
+  "id_departemen": 2,
+  "id_pm": 3,
+  "email": "rizza@email.com",
+  "no_telp": "08123456789",
+  "tanggal_bergabung": "2024-01-15",
+  "status": "Aktif"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| nama | string | Tidak | Nama karyawan |
+| role | string | Tidak | Role (karyawan/pm/hr/direktur) |
+| id_departemen | int | Tidak | ID departemen |
+| id_pm | int | Tidak | ID PM |
+| email | string | Tidak | Email |
+| no_telp | string | Tidak | No. telepon |
+| tanggal_bergabung | date | Tanggal bergabung |
+| status | string | Tidak | Status (Aktif/Cuti) |
+
+**Response 200:**
+```json
+{
+  "detail": "Data karyawan berhasil diupdate"
+}
+```
+
+**Error 404:**
+```json
+{
+  "detail": "User tidak ditemukan"
+}
+```
+
+---
+
+## Departemen Endpoints
+
+### 1. Get All Departemen
+**GET** `/departemen`
+
+Mendapatkan daftar semua departemen.
+
+**Response 200:**
+```json
+[
+  {
+    "id_departemen": 1,
+    "nama_departemen": "Engineering"
+  },
+  {
+    "id_departemen": 2,
+    "nama_departemen": "Marketing"
+  }
+]
+```
+
+---
+
+### 2. Create Departemen
+**POST** `/departemen`
+
+Membuat departemen baru.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** hr, direktur
+
+**Request Body (JSON):**
+```json
+{
+  "nama_departemen": "Finance"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| nama_departemen | string | Ya | Nama departemen |
+
+**Response 201:**
+```json
+{
+  "id_departemen": 4,
+  "nama_departemen": "Finance"
+}
+```
+
+**Error 400:**
+```json
+{
+  "detail": "Nama departemen sudah ada"
+}
+```
+
+---
+
+### 3. Update Departemen
+**PUT** `/departemen/{departemen_id}`
+
+Mengupdate nama departemen.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Role Akses:** hr, direktur
+
+**Request Body (JSON):**
+```json
+{
+  "nama_departemen": "Finance & Accounting"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| nama_departemen | string | Ya | Nama departemen baru |
+
+**Response 200:**
+```json
+{
+  "id_departemen": 4,
+  "nama_departemen": "Finance & Accounting"
+}
+```
+
+**Error 404:**
+```json
+{
+  "detail": "Departemen tidak ditemukan"
+}
+```
+
+---
+
 ## Direktur Endpoints
 
 ### 1. Get All Direktur
@@ -1311,24 +1808,44 @@ null
 ---
 
 ## Roles
-| Role | Deskripsi |
-|------|-----------|
-| karyawan | Karyawan biasa, bisa ajukan cuti |
-| pm | Project Manager, approve cuti karyawan |
-| hr | HR, approve cuti setelah PM |
-| direktur | Direktur, approve cuti final |
+| Role | Deskripsi | Alur Approval |
+|------|-----------|---------------|
+| karyawan | Karyawan biasa, bisa ajukan cuti | Dept 2&3: PM→HR, Dept 1: HR |
+| pm | Project Manager, approve cuti karyawan | HR |
+| hr | HR, approve cuti | Direktur |
+| direktur | Direktur, approve cuti final | Tidak bisa ajukan cuti |
 
 ---
 
 ## Status Cuti
-Alur status pengajuan cuti:
+Alur status pengajuan cuti berdasarkan role:
+
+**Karyawan Dept 2 & 3:**
 ```
 menunggu_pm → disetujui_pm / ditolak_pm
     ↓ disetujui_pm
-menunggu_hr → disetujui_hr / ditolak_hr
-    ↓ disetujui_hr
-menunggu_direktur → disetujui_direktur / ditolak_direktur
+menunggu_hr → disetujui_hr / ditolak_hr (SELESAI)
 ```
+
+**Karyawan Dept 1:**
+```
+menunggu_hr → disetujui_hr / ditolak_hr (SELESAI)
+```
+
+**PM:**
+```
+menunggu_hr → disetujui_hr / ditolak_hr (SELESAI)
+```
+
+**HR:**
+```
+menunggu_direktur → disetujui_direktur / ditolak_direktur (SELESAI)
+```
+
+---
+
+## Data Demo
+Lihat `seed_demo.py` untuk data demo lengkap (users, departemen, log cuti).
 
 ---
 

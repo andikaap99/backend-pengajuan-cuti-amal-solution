@@ -46,7 +46,7 @@ async def get_kalender_cuti_tim(user_id: int, db: AsyncSession) -> list[CutiSaya
         )
         team_ids = [row[0] for row in result_team.all()]
         all_ids = [user_id] + team_ids
-    else:
+    elif user.role == "karyawan":
         # karyawan sees teammates (same id_pm)
         if user.id_pm:
             result_team = await db.execute(
@@ -56,6 +56,10 @@ async def get_kalender_cuti_tim(user_id: int, db: AsyncSession) -> list[CutiSaya
             all_ids = team_ids
         else:
             all_ids = [user_id]
+    else:
+        # hr & direktur
+        result_all = await db.execute(select(User.id_user))
+        all_ids = [row[0] for row in result_all.all()]
 
     # get all leave requests from team
     result = await db.execute(

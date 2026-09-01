@@ -25,12 +25,12 @@ class PengajuanCutiOut(PengajuanCutiBase):
             "menunggu_direktur", "disetujui_direktur", "ditolak_direktur"
         ]
     alasan_penolakan: Optional[str] = None
-    disetujui_pm: Optional[int] = None
-    disetujui_hr: Optional[int] = None
-    disetujui_direktur: Optional[int] = None
-    approved_at_pm: Optional[date] = None
-    approved_at_hr: Optional[date] = None
-    approved_at_direktur: Optional[date] = None
+    diproses_pm: Optional[int] = None
+    diproses_hr: Optional[int] = None
+    diproses_direktur: Optional[int] = None
+    processed_at_pm: Optional[date] = None
+    processed_at_hr: Optional[date] = None
+    processed_at_direktur: Optional[date] = None
 
     model_config = {"from_attributes": True}
 
@@ -60,12 +60,12 @@ class EmpDashboardPengajuanOngoingOut(BaseModel):
         "menunggu_hr", "disetujui_hr", "ditolak_hr",
         "menunggu_direktur", "disetujui_direktur", "ditolak_direktur"
     ]
-    disetujui_pm: Optional[int] = None
-    disetujui_hr: Optional[int] = None
-    disetujui_direktur: Optional[int] = None
-    approved_at_pm: Optional[date] = None
-    approved_at_hr: Optional[date] = None
-    approved_at_direktur: Optional[date] = None
+    diproses_pm: Optional[int] = None
+    diproses_hr: Optional[int] = None
+    diproses_direktur: Optional[int] = None
+    processed_at_pm: Optional[date] = None
+    processed_at_hr: Optional[date] = None
+    processed_at_direktur: Optional[date] = None
     alasan_penolakan: Optional[str] = None
 
 

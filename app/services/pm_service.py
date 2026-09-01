@@ -6,6 +6,7 @@ from sqlalchemy.orm import selectinload
 from app.models.log_cuti import LogCuti
 from app.models.user import User
 from app.schemas.pm import PMDashboardRingkasanOut, PMDashboardTimOut, PMPersetujuanRingkasanTimOut, PMHistoryPersetujuanOut, PMRekapCutiRingkasanOut, PMRekapCutiDetailJatah
+from app.services.tambah_cuti_service import get_effective_sisa_cuti
 
 
 
@@ -14,14 +15,15 @@ from app.schemas.pm import PMDashboardRingkasanOut, PMDashboardTimOut, PMPersetu
 async def get_dashboard_ringkasan(pm_id: int, db: AsyncSession) -> PMDashboardRingkasanOut:
     user = await db.execute(select(User).where(User.id_user == pm_id))
     pm = user.scalar_one()
+    effective_pm_sisa = await get_effective_sisa_cuti(pm, date.today().year, db)
 
     result_team = await db.execute(select(User.id_user).where(User.id_pm == pm_id))
     team_ids = [row[0] for row in result_team.all()]
 
     if not team_ids:
         return PMDashboardRingkasanOut(
-            sisa_cuti=pm.sisa_cuti,
-            cuti_terpakai=pm.total_cuti-pm.sisa_cuti,
+            sisa_cuti=effective_pm_sisa,
+            cuti_terpakai=pm.total_cuti-effective_pm_sisa,
             tim_menunggu_appoval=0,
             total_pengajuan_tim=0,
             total_pengajuan_acc_tim=0,
@@ -42,9 +44,10 @@ async def get_dashboard_ringkasan(pm_id: int, db: AsyncSession) -> PMDashboardRi
     )
     total_pengajuan = result_total.scalar() or 0
 
+    pm_approved_statuses = ["disetujui_pm", "menunggu_hr", "disetujui_hr", "ditolak_hr"]
     result_acc = await db.execute(select(
         func.count(LogCuti.id_log_cuti)).where(
-            LogCuti.id_user.in_(team_ids), LogCuti.status == "disetujui_pm"
+            LogCuti.id_user.in_(team_ids), LogCuti.status.in_(pm_approved_statuses)
         )
     )
     total_pengajuan_acc_tim = result_acc.scalar() or 0
@@ -57,8 +60,8 @@ async def get_dashboard_ringkasan(pm_id: int, db: AsyncSession) -> PMDashboardRi
     total_pengajuan_decline_tim = result_decline.scalar() or 0
 
     return PMDashboardRingkasanOut(
-        sisa_cuti=pm.sisa_cuti,
-        cuti_terpakai=pm.total_cuti-pm.sisa_cuti,
+        sisa_cuti=effective_pm_sisa,
+        cuti_terpakai=pm.total_cuti-effective_pm_sisa,
         tim_menunggu_appoval=tim_menunggu_approval,
         total_pengajuan_tim=total_pengajuan,
         total_pengajuan_acc_tim= total_pengajuan_acc_tim,
@@ -159,7 +162,8 @@ async def get_history_cuti_tim(pm_id: int, db:AsyncSession) -> list[PMHistoryPer
     result = await db.execute(select(LogCuti).options(
         selectinload(LogCuti.user_log),
         selectinload(LogCuti.user_backup)).where(
-            LogCuti.id_user.in_(team_ids)
+            LogCuti.id_user.in_(team_ids),
+            LogCuti.status == "disetujui_hr"
         ).order_by(LogCuti.tanggal_mulai.desc())
     )
     logs = result.scalars().all()
@@ -221,14 +225,17 @@ async def get_rekap_cuti_detail(pm_id: int, db: AsyncSession) -> list[PMRekapCut
     ))
     sedang_cuti_ids = {row[0] for row in result_cuti.all()}
 
-    return [
-        PMRekapCutiDetailJatah(
+    detail = []
+    for user in users:
+        effective_sisa = await get_effective_sisa_cuti(user, today.year, db)
+        detail.append(PMRekapCutiDetailJatah(
             nama=user.nama,
             nama_departemen=user.user_departemen.nama_departemen,
-            penggunaan_cuti=user.total_cuti-user.sisa_cuti,
-            sisa_cuti=user.sisa_cuti,
+            penggunaan_cuti=user.total_cuti-effective_sisa,
+            sisa_cuti=effective_sisa,
             status="Sedang Cuti" if user.id_user in sedang_cuti_ids else "Aktif"
-        ) for user in users
-    ]
+        ))
+
+    return detail
 
     

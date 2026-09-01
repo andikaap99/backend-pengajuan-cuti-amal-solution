@@ -32,3 +32,8 @@ Thumbs.db
 
 # Documentation (not for repo)
 todo.md
+progress.md
+
+# Seed scripts
+seed_*.py
+seed_demo.py

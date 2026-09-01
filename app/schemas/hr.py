@@ -9,7 +9,7 @@ from pydantic import BaseModel
 ## ringkasan
 class HRDashboardRingkasanOut(BaseModel):
     total_karyawan: int
-    menunggu_hr: int
+    menunggu: int
     total_cuti_bulan_ini: int
     total_cuti_bulan_depan: int
 
@@ -66,6 +66,7 @@ class HRRingkasanKaryawanOut(BaseModel):
 
 ## tabel karyawan
 class HRTabelKaryawanOut(BaseModel):
+    id_user: int
     nama: str
     departemen: str
     jabatan: str
@@ -90,3 +91,18 @@ class HRDaftarCutiKaryawanOut(BaseModel):
     total_cuti: int
     cuti_terpakai: int
     sisa_cuti: int
+
+
+## edit karyawan
+class EditKaryawanRequest(BaseModel):
+    nama: Optional[str] = None
+    role: Optional[str] = None
+    id_departemen: Optional[int] = None
+    id_pm: Optional[int] = None
+    email: Optional[str] = None
+    no_telp: Optional[str] = None
+    tanggal_bergabung: Optional[date] = None
+    status: Optional[Literal["Aktif", "Cuti"]] = None
+
+class EditKaryawanResponse(BaseModel):
+    detail: str

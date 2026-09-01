@@ -9,12 +9,13 @@ class LogCutiEkstra(Base):
 
     ## define kolom
     id_log_cuti_ekstra = Column(Integer, primary_key=True, index=True)
+    id_user = Column(Integer, ForeignKey("users.id_user"), nullable=False)
     id_penambah = Column(Integer, ForeignKey("users.id_user"), nullable=False)
     jumlah_hari = Column(Integer, default=1)
     keterangan = Column(Text, nullable=False)
     added_at = Column(Date, nullable=False)
+    tahun = Column(Integer, nullable=False)
 
     ## relasi dari tabel ini
-    user_tambah_cuti = relationship("User", back_populates="user_tambah_cuti")
-
-    ## relasi ke tabel lain
+    user_tambah_cuti = relationship("User", foreign_keys=[id_penambah], back_populates="user_tambah_cuti")
+    user_target = relationship("User", foreign_keys=[id_user], back_populates="user_log_tambah_cuti")

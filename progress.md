@@ -228,3 +228,67 @@
 ## Catatan
 - Jalankan migration: `.venv/bin/alembic upgrade head`
 - Task di `todo.md` sudah semua selesai
+
+---
+
+# Progress - 1 September 2026
+
+## Data Demo Seeder
+
+### File: `seed_demo.py`
+Membuat data demo lengkap untuk testing:
+
+**Departemen:**
+1. Engineering (id=1)
+2. Marketing (id=2)
+3. Design (id=3)
+
+**Users (7 orang):**
+
+| ID | Username | Nama | Role | Dept | PM | Sisa Cuti |
+|----|----------|------|------|------|-----|-----------|
+| 2 | andika99 | Andika Aryadi Putra | hr | 1 | - | 9 |
+| 3 | airinr | Airin Ristiana | pm | 1 | - | 10 |
+| 4 | rizza | Rizza Alyda Yahya | karyawan | 2 | 3 | 8 |
+| 5 | achmad | Achmad Rizqi Ramadhan | direktur | 1 | - | 12 |
+| 6 | topik | Topik Nur Rahman | pm | 1 | - | 12 |
+| 7 | rissa | Rissa | karyawan | 3 | 3 | 8 |
+| 8 | arneta | Arneta Ristiana | karyawan | 2 | 3 | 12 |
+
+**Password semua user:** `untukdevajaya`
+
+**Alur Approval:**
+- Karyawan dept 2 & 3 → PM → HR (selesai)
+- Karyawan dept 1 → HR (selesai)
+- PM → HR (selesai)
+- HR → Direktur (selesai)
+
+**Log Cuti (13 data):**
+
+| User | Durasi | Status | Keterangan |
+|------|--------|--------|------------|
+| Rizza | 4 hari | disetujui_hr | Cuti awal tahun |
+| Rizza | 3 hari | ditolak_pm | Keperluan keluarga |
+| Rizza | 3 hari | menunggu_pm | Traveling dengan teman |
+| Topik | 3 hari | menunggu_hr | Lebaran |
+| Topik | 3 hari | ditolak_hr | Pernikahan saudara |
+| Topik | 4 hari | menunggu_hr | Liburan akhir tahun |
+| Rissa | 4 hari | disetujui_hr | Cuti menikah |
+| Rissa | 3 hari | ditolak_pm | Ulang tahun |
+| Rissa | 3 hari | menunggu_pm | Keperluan pribadi |
+| Airin | 3 hari | menunggu_hr | Cuti keluarga |
+| Airin | 2 hari | disetujui_hr | Idul Fitri |
+| Andika | 3 hari | menunggu_direktur | Cuti Lebaran |
+| Andika | 3 hari | disetujui_direktur | Acara keluarga |
+
+### Cara Jalankan
+```bash
+# Drop & buat ulang database
+mysql -u root -e "DROP DATABASE IF EXISTS db_cuti_karyawan; CREATE DATABASE db_cuti_karyawan;"
+
+# Jalankan migrasi
+alembic upgrade head
+
+# Jalankan seeder
+python seed_demo.py --force
+```
