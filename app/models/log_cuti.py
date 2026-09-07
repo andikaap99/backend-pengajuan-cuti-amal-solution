@@ -29,6 +29,7 @@ class LogCuti(Base):
     processed_at_pm = Column(Date, nullable=True)
     processed_at_hr = Column(Date, nullable=True)
     processed_at_direktur = Column(Date, nullable=True)
+    edited_at = Column(Date, nullable=True)
 
     ## relasi dari tabel ini
     user_log = relationship("User", foreign_keys=[id_user], back_populates="user_log")

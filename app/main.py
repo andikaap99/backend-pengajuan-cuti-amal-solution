@@ -44,7 +44,7 @@ async def lifespan(app: FastAPI):
         await aktifkan_user_selesai_cuti(db)
 
     # schedule tiap jam 00:00
-    scheduler.add_job(job_holiday_quota, CronTrigger(hour=12, minute=0), timezone=timezone("Asia/Jakarta"))
+    scheduler.add_job(job_holiday_quota, CronTrigger(hour=17, minute=0), timezone=timezone("Asia/Jakarta"))
     scheduler.add_job(job_aktifkan_user, CronTrigger(hour=0, minute=5), timezone=timezone("Asia/Jakarta"))
     scheduler.start()
     yield

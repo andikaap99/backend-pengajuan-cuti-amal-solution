@@ -1807,6 +1807,73 @@ null
 
 ---
 
+## Email Notification
+
+Sistem mengirim email notifikasi otomatis melalui Gmail SMTP menggunakan `fastapi-mail`. Email dikirim via `BackgroundTasks` (tidak memperlambat response API).
+
+### Konfigurasi SMTP
+
+Tambahkan variabel berikut di `.env`:
+
+```
+MAIL_USERNAME=your-email@gmail.com
+MAIL_PASSWORD=your-app-password
+MAIL_FROM=your-email@gmail.com
+MAIL_SERVER=smtp.gmail.com
+MAIL_PORT=587
+MAIL_STARTTLS=True
+MAIL_SSL_TLS=False
+```
+
+> **Catatan Gmail:** Jika 2FA aktif, buat [App Password](https://myaccount.google.com/apppasswords).
+
+### Validasi Email
+
+Sebelum mengirim email apa pun, sistem mengecek apakah `user.email` terisi (tidak None/kosong). Jika kosong, proses pengiriman email **skip** tanpa error.
+
+### Jenis Email
+
+#### 1. Notifikasi Status (Teks Biasa)
+
+Dikirim saat status pengajuan berubah ke status yang **belum final**.
+
+| Status | Subjek Email | Isi Email |
+|--------|-------------|-----------|
+| `menunggu_pm` → `disetujui_pm` | `Diacc PM - {nama}` | "Pengajuan telah diacc oleh PM. Sekarang sedang menunggu persetujuan HR." |
+| `menunggu_pm` → `ditolak_pm` | `Ditolak PM - {nama}` | "Pengajuan telah ditolak oleh PM. Alasan: ..." |
+| `menunggu_hr` → `disetujui_hr` | *(tidak ada, langsung surat PDF)* | *(lihat surat konfirmasi)* |
+| `menunggu_hr` → `ditolak_hr` | `Ditolak HR - {nama}` | "Pengajuan telah ditolak oleh HR. Alasan: ..." |
+| `menunggu_direktur` → `disetujui_direktur` | *(tidak ada, langsung surat PDF)* | *(lihat surat konfirmasi)* |
+| `menunggu_direktur` → `ditolak_direktur` | `Ditolak Direktur - {nama}` | "Pengajuan telah ditolak oleh Direktur. Alasan: ..." |
+
+#### 2. Surat Konfirmasi Cuti (PDF)
+
+Dikirim saat status pengajuan mencapai **status final disetujui** (`disetujui_hr` atau `disetujui_direktur`).
+
+- **Subjek:** `Cuti Disetujui - {nama}`
+- **Isi:** Email teks + lampiran PDF surat konfirmasi
+- **Template:** `templates/surat_cuti.html`
+- **Generator:** WeasyPrint (HTML → PDF)
+- **Isi Surat:** Nama karyawan, departemen, jenis cuti, tanggal mulai-selesai, durasi, disetujui oleh, tanggal approval
+
+### Flow Email
+
+```
+PM Acc → menunggu_hr → email "Diacc PM" (teks)
+    ↓
+HR Acc → disetujui_hr → email "Cuti Disetujui" (PDF attachment)
+    ↓
+PM Decline → ditolak_pm → email "Ditolak PM" (teks)
+```
+
+### Service Email
+
+- `app/services/email_service.py`:
+  - `send_status_email()` - notifikasi teks untuk status belum final
+  - `generate_surat_cuti()` - generate PDF + kirim email untuk status final
+
+---
+
 ## Roles
 | Role | Deskripsi | Alur Approval |
 |------|-----------|---------------|

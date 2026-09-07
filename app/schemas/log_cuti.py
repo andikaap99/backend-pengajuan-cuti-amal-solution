@@ -31,6 +31,7 @@ class PengajuanCutiOut(PengajuanCutiBase):
     processed_at_pm: Optional[date] = None
     processed_at_hr: Optional[date] = None
     processed_at_direktur: Optional[date] = None
+    edited_at: Optional[date] = None
 
     model_config = {"from_attributes": True}
 
@@ -75,7 +76,11 @@ class EmpDashboardRingkasanOut(BaseModel):
     cuti_terpakai: int
     sisa_cuti: int
 
-# class LogCutiUpdateStatus(BaseModel):
-#     status: str
-#     alasan_penolakan: Optional[str] = None
+
+### PengajuanCutiUpdate
+class PengajuanCutiUpdate(BaseModel):
+    tanggal_mulai: Optional[date] = None
+    tanggal_selesai: Optional[date] = None
+    pengganti: Optional[int] = None
+    keterangan_cuti: Optional[str] = None
 

@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import require_role
@@ -29,10 +29,11 @@ async def get_queue(
 async def approve_or_decline(
     log_cuti_id: int, data: ApprovalRequest,
     current_user: Annotated[User, Depends(require_role("pm", "hr", "direktur"))],
-    db: Annotated[AsyncSession, Depends(get_db)]
+    db: Annotated[AsyncSession, Depends(get_db)],
+    background_tasks: BackgroundTasks
 ):
 
-    return await process_approval(log_cuti_id, current_user, data, db)
+    return await process_approval(log_cuti_id, current_user, data, db, background_tasks)
 
 
 ## queue penambahan kerja

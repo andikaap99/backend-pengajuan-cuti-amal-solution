@@ -1,5 +1,5 @@
 from datetime import date
-from fastapi import HTTPException, status
+from fastapi import BackgroundTasks, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -8,6 +8,7 @@ from app.models.log_cuti import LogCuti
 from app.models.user import User
 from app.schemas.approval import ApprovalRequest, ApprovalResponse
 from app.schemas.pengajuan import PersetujuanQueueCutiOut
+from app.services.email_service import send_status_email, generate_surat_cuti
 from app.services.tambah_cuti_service import get_effective_sisa_cuti
 
 
@@ -84,15 +85,15 @@ AFTER_DECLINE_STATUSES = {
 ## map final approve
 FINAL_APPROVED = {"disetujui_hr", "disetujui_direktur"}
 
-async def process_approval(log_cuti_id: int, current_user: User, data: ApprovalRequest, db: AsyncSession) -> ApprovalResponse:
+async def process_approval(log_cuti_id: int, current_user: User, data: ApprovalRequest, db: AsyncSession, background_tasks: BackgroundTasks) -> ApprovalResponse:
     result_cuti = await db.execute(select(LogCuti).options(
-        selectinload(LogCuti.user_log)).where(LogCuti.id_log_cuti == log_cuti_id))
+        selectinload(LogCuti.user_log).selectinload(User.user_departemen)).where(LogCuti.id_log_cuti == log_cuti_id))
     log_cuti = result_cuti.scalar_one_or_none()
 
     if not log_cuti:
         raise HTTPException(status_code=404, detail="Log cuti tidak ditemukan!")
 
-    result_user = await db.execute(select(User).where(User.id_user == log_cuti.id_user))
+    result_user = await db.execute(select(User).options(selectinload(User.user_departemen)).where(User.id_user == log_cuti.id_user))
     user_pengaju = result_user.scalar_one_or_none()
 
     target_status = PROCESSABLE_STATUSES.get(current_user.role)
@@ -154,6 +155,14 @@ async def process_approval(log_cuti_id: int, current_user: User, data: ApprovalR
         db.add(user_pengaju)
 
     await db.commit()
+
+    ### kirim notifikasi email setelah commit berhasil
+    if new_status in FINAL_APPROVED:
+        ### status final: kirim email dengan surat PDF
+        background_tasks.add_task(generate_surat_cuti, log_cuti, user_pengaju, current_user)
+    else:
+        ### status belum final: kirim notifikasi teks biasa
+        background_tasks.add_task(send_status_email, log_cuti, user_pengaju, current_user, new_status)
 
     return ApprovalResponse(
         detail=detail_msg,

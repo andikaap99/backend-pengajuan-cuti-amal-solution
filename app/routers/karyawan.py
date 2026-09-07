@@ -6,8 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import require_role
 from app.db import get_db
 from app.models.user import User
-from app.schemas.log_cuti import PengajuanCutiCreate, PengajuanCutiOut, RiwayatCutiOut, EmpDashboardPengajuanOngoingOut, EmpDashboardRingkasanOut
-from app.services.cuti_service import create_pengajuan_cuti, get_my_cuti, get_my_ongoing_cuti, get_my_ringkasan_cuti
+from app.schemas.log_cuti import PengajuanCutiCreate, PengajuanCutiOut, PengajuanCutiUpdate, RiwayatCutiOut, EmpDashboardPengajuanOngoingOut, EmpDashboardRingkasanOut
+from app.services.cuti_service import create_pengajuan_cuti, get_my_cuti, get_my_ongoing_cuti, get_my_ringkasan_cuti, edit_pengajuan_cuti
 from app.services.minus_cuti_service import kurangi_jatah_cuti
 from app.services.kalender_service import get_my_kalender_cuti, get_kalender_cuti_tim
 from app.schemas.kalender import CutiSayaOut 
@@ -105,3 +105,24 @@ async def get_riwayat_penambahan_kerja(
 ):
 
     return await get_my_penambahan_kerja(current_user.id_user, db)
+
+
+## edit pengajuan cuti
+@router.put("/cuti/{log_cuti_id}", response_model=PengajuanCutiOut)
+async def update_pengjuan_cuti(
+    log_cuti_id: int, data: PengajuanCutiUpdate,
+    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr"))],
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
+
+    return await edit_pengajuan_cuti(log_cuti_id, current_user.id_user, data, db)
+
+# ### edit_pengajuan_cuti
+# @router.put("/cuti/{log_cuti_id}", response_model=PengajuanCutiOut)
+# async def update_pengajuan_cuti(
+#     log_cuti_id: int,
+#     data: PengajuanCutiUpdate,
+#     current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr"))],
+#     db: Annotated[AsyncSession, Depends(get_db)],
+# ):
+#     return await edit_pengajuan_cuti(log_cuti_id, current_user.id_user, data, db)
