@@ -18,6 +18,7 @@ class User(Base):
     id_pm = Column(Integer, ForeignKey("users.id_user"), nullable=True)
     total_cuti = Column(Integer, default=12)
     sisa_cuti = Column(Integer, default=12)
+    jatah_tambahan = Column(Integer, default=0)
     email = Column(String(100), nullable=True)
     no_telp = Column(String(20), nullable=True)
     tanggal_bergabung = Column(Date, nullable=True)

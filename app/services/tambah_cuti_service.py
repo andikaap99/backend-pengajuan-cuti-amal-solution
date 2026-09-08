@@ -1,27 +1,30 @@
 from datetime import date
 from fastapi import HTTPException
-from sqlalchemy import select, func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.log_cuti_ekstra import LogCutiEkstra
 from app.models.user import User
 
 
-async def get_total_tambahan_cuti(user_id: int, tahun: int, db: AsyncSession) -> int:
-    result = await db.execute(
-        select(func.coalesce(func.sum(LogCutiEkstra.jumlah_hari), 0)).where(
-            LogCutiEkstra.id_user == user_id,
-            LogCutiEkstra.tahun == tahun,
-        )
-    )
-
-    return result.scalar_one()
-
-
 async def get_effective_sisa_cuti(user: User, tahun: int, db: AsyncSession) -> int:
-    tambahan = await get_total_tambahan_cuti(user.id_user, tahun, db)
+    return user.sisa_cuti + user.jatah_tambahan
 
-    return user.sisa_cuti + tambahan
+
+async def konsumsi_cuti(user: User, durasi: int, db: AsyncSession) -> None:
+    sisa = durasi
+
+    if user.jatah_tambahan > 0:
+        pakai = min(user.jatah_tambahan, sisa)
+        user.jatah_tambahan -= pakai
+        sisa -= pakai
+
+    if sisa > 0:
+        if user.sisa_cuti < sisa:
+            raise HTTPException(status_code=400, detail="Sisa cuti tidak cukup")
+        user.sisa_cuti -= sisa
+
+    db.add(user)
 
 
 async def tambah_sisa_cuti(id_user: int, jumlah_hari: int, keterangan: str, id_penambah: int, db: AsyncSession) -> LogCutiEkstra:
@@ -43,6 +46,10 @@ async def tambah_sisa_cuti(id_user: int, jumlah_hari: int, keterangan: str, id_p
         tahun=tahun
     )
     db.add(log)
+
+    user.jatah_tambahan += jumlah_hari
+    db.add(user)
+
     await db.commit()
     await db.refresh(log)
 

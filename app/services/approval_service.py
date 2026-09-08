@@ -9,7 +9,7 @@ from app.models.user import User
 from app.schemas.approval import ApprovalRequest, ApprovalResponse
 from app.schemas.pengajuan import PersetujuanQueueCutiOut
 from app.services.email_service import send_status_email, generate_surat_cuti
-from app.services.tambah_cuti_service import get_effective_sisa_cuti
+from app.services.tambah_cuti_service import get_effective_sisa_cuti, konsumsi_cuti
 
 
 async def get_queue_card(current_user: User, db: AsyncSession) -> list[PersetujuanQueueCutiOut]:
@@ -151,8 +151,7 @@ async def process_approval(log_cuti_id: int, current_user: User, data: ApprovalR
         # set status "Cuti" hanya jika cuti sedang berjalan hari ini
         if log_cuti.tanggal_mulai <= today <= log_cuti.tanggal_selesai:
             user_pengaju.status = "Cuti"
-        user_pengaju.sisa_cuti -= lama_cuti
-        db.add(user_pengaju)
+        await konsumsi_cuti(user_pengaju, lama_cuti, db)
 
     await db.commit()
 

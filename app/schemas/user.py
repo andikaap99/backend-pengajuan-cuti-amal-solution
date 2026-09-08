@@ -50,6 +50,7 @@ class UserMeOut(BaseModel):
     id_pm: int | None = None
     total_cuti: int
     sisa_cuti: int
+    jatah_tambahan: int = 0
     email: Optional[str] = None
     no_telp: Optional[str] = None
     tanggal_bergabung: Optional[date] = None

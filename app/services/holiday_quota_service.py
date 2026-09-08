@@ -1,10 +1,11 @@
 from datetime import date
-from sqlalchemy import select, update, and_
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.holiday import Holiday
 from app.models.user import User
 from app.models.log_penambahan_kerja import LogPenambahanKerja
+from app.services.tambah_cuti_service import konsumsi_cuti
 
 
 async def proses_cuti_hari_libur(db: AsyncSession) -> int:
@@ -34,14 +35,16 @@ async def proses_cuti_hari_libur(db: AsyncSession) -> int:
 
     excluded_user_ids = user_kerja_ids & user_dept3_ids
 
+    query = select(User).where(User.role.in_(["karyawan", "pm", "hr"]))
     if excluded_user_ids:
-        await db.execute(update(User).where(
-            User.sisa_cuti > 0, 
-            User.id_user.notin_(excluded_user_ids)
-            ).values(sisa_cuti=User.sisa_cuti - jumlah_hari)
-        )
-    else:
-        await db.execute(update(User).where(User.sisa_cuti > 0).values(sisa_cuti=User.sisa_cuti - jumlah_hari))
+        query = query.where(User.id_user.notin_(excluded_user_ids))
+
+    result_users = await db.execute(query)
+    users = result_users.scalars().all()
+
+    for user in users:
+        if user.jatah_tambahan > 0 or user.sisa_cuti > 0:
+            await konsumsi_cuti(user, jumlah_hari, db)
 
     for holiday in holidays:
         holiday.sudah_dikurangi = True

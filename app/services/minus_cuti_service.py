@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
-
+from app.services.tambah_cuti_service import konsumsi_cuti
 
 
 ## fungsi mengurangi jatah cuti
@@ -14,9 +14,5 @@ async def kurangi_jatah_cuti(user_id: int, durasi: int, db: AsyncSession) -> Non
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User tidak ditemukan")
 
-    if user.sisa_cuti < durasi:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Sisa cuti tidak cukup")
-
-    user.sisa_cuti -= durasi
-    db.add(user)
+    await konsumsi_cuti(user, durasi, db)
     await db.flush()
