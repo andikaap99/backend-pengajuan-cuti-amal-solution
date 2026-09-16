@@ -6,11 +6,10 @@ from app.models.log_cuti import LogCuti
 from app.models.user import User
 
 
-FINAL_APPROVED_STATUSES = ["disetujui_hr", "disetujui_direktur"]
+FINAL_APPROVED_STATUSES = ["disetujui_hr", "disetujui_direktur", "cuti_bersama"]
 
 
 async def aktifkan_user_selesai_cuti(db: AsyncSession) -> int:
-    """cek semua user yang statusnya 'Cuti', kalau tidak ada cuti aktif hari ini → balik ke 'Aktif'"""
     today = date.today()
 
     result_users = await db.execute(
@@ -23,13 +22,13 @@ async def aktifkan_user_selesai_cuti(db: AsyncSession) -> int:
 
     count = 0
     for user in users:
-        # tentukan status approved sesuai role
-        if user.role == "hr":
+        ## tentukan status approved sesuai role
+        if user.role in ("hr", "staff_hr"):
             approved_statuses = ["disetujui_direktur"]
         else:
             approved_statuses = FINAL_APPROVED_STATUSES
 
-        # cek apakah ada cuti yang sedang berjalan hari ini
+        ## cek apakah ada cuti yang sedang berjalan hari ini
         result_active = await db.execute(
             select(LogCuti).where(
                 LogCuti.id_user == user.id_user,
@@ -46,4 +45,5 @@ async def aktifkan_user_selesai_cuti(db: AsyncSession) -> int:
             count += 1
 
     await db.commit()
+    
     return count

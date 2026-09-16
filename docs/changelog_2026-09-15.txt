@@ -1,0 +1,45 @@
+Changelog - 15 September 2026
+============================
+
+1. Status "cuti_bersama" untuk Potongan Cuti Bersama Nasional
+----------------------------------------------------------
+- Tambah status `"cuti_bersama"` ke `LogCuti.status` enum agar potongan cuti bersama dari `proses_cuti_hari_libur()` tercatat sebagai entri `LogCuti`
+- `holiday_quota_service.py` sekarang membuat `LogCuti` per user dengan `status = "cuti_bersama"` (atau `"disetujui_direktur"` untuk role HR)
+- `hitung_cuti_terpakai()` otomatis menghitung potongan cuti bersama karena statusnya sudah final
+- Update semua referensi final-status di service dan schema
+
+File yang diubah:
+- app/models/log_cuti.py - tambah `"cuti_bersama"` ke Enum status
+- app/services/holiday_quota_service.py - buat LogCuti dengan status "cuti_bersama"
+- app/services/cuti_service.py - `FINAL_STATUSES` tambah "cuti_bersama"
+- app/services/ongoing_status_role_service.py - `get_finished_statuses()` semua role tambah "cuti_bersama"
+- app/services/auto_aktifkan_user_service.py - `FINAL_APPROVED_STATUSES` tambah "cuti_bersama"
+- app/services/export_excel_service.py - `approved_statuses` tambah "cuti_bersama"
+- app/services/hr_service.py - semua filter status final tambah "cuti_bersama"
+- app/services/approval_service.py - `FINAL_APPROVED` tambah "cuti_bersama"
+- app/services/tambah_cuti_service.py - `user.total_cuti += jumlah_hari`
+- app/schemas/log_cuti.py - Literal status tambah "cuti_bersama" di `PengajuanCutiOut`, `RiwayatCutiOut`, `EmpDashboardPengajuanOngoingOut`
+- app/schemas/hr.py - `HRLogCutiOut` status Literal tambah "cuti_bersama"
+- alembic/versions/abc123def456_add_cuti_bersama_status.py - migration ALTER TABLE log_cuti status enum
+
+
+2. get_cuti_log: Tampilkan Siapa yang Approve/Réject (approved_by)
+----------------------------------------------------------
+- `get_cuti_log()` sekarang menampilkan `approved_by` berdasarkan siapa yang memproses
+- Urutan: `hr_log` → `direktur_log` → PM rejector (dari `LogCutiApprovalPM`) → `"-"`
+- `HRLogCutiOut.approved_by` sudah ada, tidak perlu ubah schema
+
+File yang diubah:
+- app/services/hr_service.py - `get_cuti_log()` update `selectinload` dan logika `get_approved_by()`
+
+
+3. get_log_penambahan_kerja: Tambahkan pengganti dan approved_by
+----------------------------------------------------------
+- `get_log_penambahan_kerja()` sekarang menampilkan `pengganti` dan `approved_by` seperti `get_cuti_log`
+- `pengganti` selalu `"-"` (model `LogPenambahanKerja` tidak punya field tersebut)
+- `approved_by` dari `diproses_hr` (query manual ke `User`) atau PM rejector (dari `LogPenambahanKerjaApprovalPM`)
+- `HRLogPenambahanKerjaOut` schema ditambah `pengganti: str` dan `approved_by: Optional[str]`
+
+File yang diubah:
+- app/services/hr_service.py - `get_log_penambahan_kerja()` update query dan logika `approved_by`
+- app/schemas/hr.py - `HRLogPenambahanKerjaOut` tambah `pengganti` dan `approved_by`

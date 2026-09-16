@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
 
 from pydantic import BaseModel
@@ -8,7 +8,9 @@ from pydantic import BaseModel
 ## ringkasan
 class PMDashboardRingkasanOut(BaseModel):
     sisa_cuti: int
+    jatah_cuti: int
     cuti_terpakai: int
+    total_anggota_tim: int
     tim_menunggu_appoval: int
     total_pengajuan_tim: int
     total_pengajuan_acc_tim: int
@@ -20,6 +22,7 @@ class PMDashboardTimOut(BaseModel):
     jenis_cuti: str
     tanggal_mulai: date
     tanggal_selesai: date
+    tanggal_pengajuan: datetime
     status: str
 
 
@@ -40,6 +43,7 @@ class PMHistoryPersetujuanOut(BaseModel):
     keterangan: str
     durasi: int
     pengganti: str
+    tanggal_pengajuan: datetime
     status: str
 
 
@@ -56,3 +60,18 @@ class PMRekapCutiDetailJatah(BaseModel):
     penggunaan_cuti: int
     sisa_cuti: int
     status: str
+
+
+## rekap penambahan kerja detail
+class TanggalKerjaItem(BaseModel):
+    tanggal_mulai: date
+    tanggal_selesai: date
+
+class PMRekapPenambahanKerjaDetail(BaseModel):
+    nama: str
+    nama_departemen: str
+    total_pengajuan: int
+    disetujui: int
+    ditolak: int
+    status: str
+    tanggal_kerja: list[TanggalKerjaItem]

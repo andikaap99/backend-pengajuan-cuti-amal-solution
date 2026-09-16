@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from typing import Literal, Optional
 
 from pydantic import BaseModel
@@ -10,8 +10,12 @@ from pydantic import BaseModel
 class HRDashboardRingkasanOut(BaseModel):
     total_karyawan: int
     menunggu: int
-    total_cuti_bulan_ini: int
-    total_cuti_bulan_depan: int
+    total_pengajuan: int
+    total_pengajuan_diacc: int
+    total_pengajuan_ditolak: int
+    total_cuti: int
+    cuti_terpakai: int
+    sisa_cuti: int
 
 ## list cuti mendatang
 class HRListCutiKaryawanMendatangOut(BaseModel):
@@ -19,6 +23,7 @@ class HRListCutiKaryawanMendatangOut(BaseModel):
     jenis_cuti: str
     tanggal_mulai: date
     tanggal_selesai: date
+    tanggal_pengajuan: datetime
     status: str
 
 
@@ -35,9 +40,8 @@ class HRDashboardPersetujuanOut(BaseModel):
 class HRRekapitulasiOut(BaseModel):
     nama: str
     nama_departemen: str
-    tanggal_mulai: date
-    tanggal_selesai: date
     total_cuti: int
+    cuti_terpakai: int
     sisa_cuti: int
 
 ## log cuti
@@ -49,12 +53,14 @@ class HRLogCutiOut(BaseModel):
     jenis_cuti: str
     keterangan: str
     pengganti: str
+    tanggal_pengajuan: datetime
     status: Literal[
             "menunggu_pm", "disetujui_pm", "ditolak_pm",
             "menunggu_hr", "disetujui_hr", "ditolak_hr",
-            "menunggu_direktur", "disetujui_direktur", "ditolak_direktur"
+            "menunggu_direktur", "disetujui_direktur", "ditolak_direktur",
+            "cuti_bersama"
         ]
-    hr_approved_by: Optional[str] = None
+    approved_by: Optional[str] = None
 
 
 ## data karyawan
@@ -71,6 +77,9 @@ class HRTabelKaryawanOut(BaseModel):
     departemen: str
     jabatan: str
     email: Optional[str] = None
+    no_telp: Optional[str] = None
+    tanggal_bergabung: Optional[date] = None
+    nama_pm: list[str] = []
     status: str
 
 ## tabel departemen
@@ -98,11 +107,35 @@ class EditKaryawanRequest(BaseModel):
     nama: Optional[str] = None
     role: Optional[str] = None
     id_departemen: Optional[int] = None
-    id_pm: Optional[int] = None
     email: Optional[str] = None
     no_telp: Optional[str] = None
     tanggal_bergabung: Optional[date] = None
     status: Optional[Literal["Aktif", "Cuti"]] = None
+    pm_add: Optional[list[int]] = None
+    pm_remove: Optional[list[int]] = None
 
 class EditKaryawanResponse(BaseModel):
     detail: str
+
+
+## log pengajuan kerja
+class HRLogPenambahanKerjaOut(BaseModel):
+    nama: str
+    tanggal_mulai: date
+    tanggal_selesai: date
+    durasi: int
+    keterangan: str
+    tanggal_pengajuan: datetime
+    status: Literal["menunggu_pm", "disetujui_pm", "ditolak_pm", "menunggu_hr", "disetujui_hr", "ditolak_hr", "menunggu_direktur"]
+    pengganti: str
+    approved_by: Optional[str] = None
+
+
+## rekapitulasi pengajuan kerja
+class HRRekapitulasiPenambahanKerjaOut(BaseModel):
+    nama: str
+    nama_departemen: str
+    total_pengajuan: int
+    disetujui: int
+    ditolak: int
+    approved_by: Optional[str] = None

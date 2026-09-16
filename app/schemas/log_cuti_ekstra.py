@@ -5,8 +5,6 @@ from pydantic import BaseModel
 
 
 class LogCutiEkstraCreate(BaseModel):
-    id_user: int
-    jumlah_hari: int = 1
     keterangan: str
 
 

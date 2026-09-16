@@ -25,8 +25,9 @@ async def get_departements(db: Annotated[AsyncSession, Depends(get_db)]):
 async def create_new_departemen(
     body: DepartemenCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(require_role("hr", "direktur"))],
+    current_user: Annotated[User, Depends(require_role("hr", "direktur", "staff_hr"))],
 ):
+    
     return await create_departemen(db, body.nama_departemen)
 
 
@@ -35,6 +36,7 @@ async def edit_departemen(
     departemen_id: int,
     body: DepartemenUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(require_role("hr", "direktur"))],
+    current_user: Annotated[User, Depends(require_role("hr", "direktur", "staff_hr"))],
 ):
+    
     return await update_departemen(db, departemen_id, body.nama_departemen)

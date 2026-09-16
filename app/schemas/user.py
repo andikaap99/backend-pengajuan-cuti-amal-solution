@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
 
 from pydantic import BaseModel
@@ -10,7 +10,6 @@ class UserRegister(BaseModel):
     nama: str
     password: str
     id_departemen: int
-    id_pm: int | None = None
 
 class UserRegisterAdmin(BaseModel):
     username: str
@@ -18,10 +17,10 @@ class UserRegisterAdmin(BaseModel):
     password: str
     role: str
     id_departemen: int
-    id_pm: int | None = None
     email: str | None = None
     no_telp: str | None = None
     tanggal_bergabung: date | None = None
+    id_pm_list: list[int] | None = None
 
 ## apa aja yang ditampilin waktu register berhasil
 class UserOut(BaseModel):
@@ -47,14 +46,12 @@ class UserMeOut(BaseModel):
     nama: str
     role: str
     id_departemen: int
-    id_pm: int | None = None
     total_cuti: int
+    cuti_terpakai: int
     sisa_cuti: int
-    jatah_tambahan: int = 0
     email: Optional[str] = None
     no_telp: Optional[str] = None
     tanggal_bergabung: Optional[date] = None
-    # pm: PMOut | None = None
 
     model_config = {"from_attributes": True}
 
@@ -76,9 +73,7 @@ class ChangePassword(BaseModel):
 
 ## data update profile
 class UpdateProfile(BaseModel):
-    email: Optional[str] = None
     no_telp: Optional[str] = None
-    tanggal_bergabung: Optional[date] = None
 
 
 class UpdateProfileMessage(BaseModel):
@@ -88,4 +83,4 @@ class UpdateProfileMessage(BaseModel):
 class ActivityOut(BaseModel):
     jenis_aktivitas: str
     keterangan: str
-    tanggal: date
+    tanggal: Optional[datetime] = None

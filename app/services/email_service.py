@@ -9,6 +9,7 @@ from weasyprint import HTML
 
 from app.core.config import mail_settings
 from app.models.log_cuti import LogCuti
+from app.models.log_penambahan_kerja import LogPenambahanKerja
 from app.models.user import User
 
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
@@ -30,6 +31,7 @@ ROLE_LABELS = {
     "pm": "Project Manager",
     "hr": "Human Resources",
     "direktur": "Direktur",
+    "staff_hr": "Staff HR",
 }
 
 
@@ -47,12 +49,13 @@ def _get_mail_config() -> ConnectionConfig:
     )
 
 
-### send_status_email - notifikasi teks hanya untuk status yang belum final
+## notifikasi teks hanya untuk status yang belum final
 async def send_status_email(
     log_cuti: LogCuti,
     user_pengaju: User,
     current_user: User,
     new_status: str,
+    pending_pm_names: list[str] | None = None,
 ) -> None:
     if not user_pengaju.email:
         return
@@ -61,10 +64,10 @@ async def send_status_email(
     role_penyetuju = ROLE_LABELS.get(current_user.role, current_user.role)
 
     if new_status.startswith("ditolak"):
-        subject = f"Ditolak {role_penyetuju} - {user_pengaju.nama}"
+        subject = f"Ditolak {role_penyetuju} ({current_user.nama}) - {user_pengaju.nama}"
         body = (
             f"Halo {user_pengaju.nama},\n\n"
-            f"Pengajuan cuti Anda telah ditolak oleh {role_penyetuju}.\n\n"
+            f"Pengajuan cuti Anda telah ditolak oleh {role_penyetuju} ({current_user.nama}).\n\n"
             f"Detail Pengajuan:\n"
             f"- Jenis Cuti: {log_cuti.jenis_cuti}\n"
             f"- Tanggal: {log_cuti.tanggal_mulai} s/d {log_cuti.tanggal_selesai} ({durasi} hari)\n"
@@ -74,11 +77,20 @@ async def send_status_email(
         body += "\nTerima kasih.\nSalam,\nTim HR Amal Solution"
     else:
         status_label = STATUS_LABELS.get(new_status, new_status)
-        subject = f"Diacc {role_penyetuju} - {user_pengaju.nama}"
+        subject = f"Diacc {role_penyetuju} ({current_user.nama}) - {user_pengaju.nama}"
         body = (
             f"Halo {user_pengaju.nama},\n\n"
-            f"Pengajuan cuti Anda telah diacc oleh {role_penyetuju}.\n"
-            f"Sekarang sedang {status_label}.\n\n"
+            f"Pengajuan cuti Anda telah diacc oleh {role_penyetuju} ({current_user.nama}).\n"
+        )
+
+        if new_status == "menunggu_hr":
+            body += f"Sekarang sedang menunggu persetujuan HR.\n\n"
+        elif new_status == "menunggu_pm" and pending_pm_names:
+            body += f"Masih menunggu persetujuan PM: {', '.join(pending_pm_names)}.\n\n"
+        else:
+            body += f"Sekarang sedang {status_label}.\n\n"
+
+        body += (
             f"Detail Pengajuan:\n"
             f"- Jenis Cuti: {log_cuti.jenis_cuti}\n"
             f"- Tanggal: {log_cuti.tanggal_mulai} s/d {log_cuti.tanggal_selesai} ({durasi} hari)\n\n"
@@ -96,13 +108,111 @@ async def send_status_email(
     await fm.send_message(message)
 
 
-### generate_surat_cuti - generate PDF surat konfirmasi, dipanggil saat status final disetujui
+## notifikasi ke approver saat ada pengajuan baru
+async def send_pengajuan_notification(
+    user_pengaju: User,
+    approver: User,
+    jenis_pengajuan: str,
+    tanggal_mulai: date,
+    tanggal_selesai: date,
+    keterangan: str,
+) -> None:
+    if not approver.email:
+
+        return
+
+    durasi = (tanggal_selesai - tanggal_mulai).days + 1
+
+    subject = f"Pengajuan {jenis_pengajuan} Baru - {user_pengaju.nama}"
+    body = (
+        f"Halo {approver.nama},\n\n"
+        f"Karyawan {user_pengaju.nama} telah mengajukan {jenis_pengajuan}.\n\n"
+        f"Detail Pengajuan:\n"
+        f"- Tanggal: {tanggal_mulai} s/d {tanggal_selesai} ({durasi} hari)\n"
+        f"- Keterangan: {keterangan}\n\n"
+        f"Silakan proses pengajuan ini di halaman approval.\n\n"
+        f"Terima kasih."
+    )
+
+    message = MessageSchema(
+        subject=subject,
+        recipients=[approver.email],
+        body=body,
+        subtype="plain",
+    )
+
+    fm = FastMail(_get_mail_config())
+    await fm.send_message(message)
+
+
+## notifikasi status pengajuan kerja ke karyawan
+async def send_penambahan_kerja_status_email(
+    log_kerja: LogPenambahanKerja,
+    user_pengaju: User,
+    current_user: User,
+    new_status: str,
+    pending_pm_names: list[str] | None = None,
+) -> None:
+    if not user_pengaju.email:
+
+        return
+
+    durasi = (log_kerja.tanggal_selesai - log_kerja.tanggal_mulai).days + 1
+    role_penyetuju = ROLE_LABELS.get(current_user.role, current_user.role)
+
+    if new_status.startswith("ditolak"):
+        subject = f"Ditolak {role_penyetuju} ({current_user.nama}) - {user_pengaju.nama}"
+        body = (
+            f"Halo {user_pengaju.nama},\n\n"
+            f"Pengajuan penambahan kerja Anda telah ditolak oleh {role_penyetuju} ({current_user.nama}).\n\n"
+            f"Detail Pengajuan:\n"
+            f"- Tanggal: {log_kerja.tanggal_mulai} s/d {log_kerja.tanggal_selesai} ({durasi} hari)\n"
+            f"- Keterangan: {log_kerja.keterangan_pengajuan}\n"
+        )
+        if log_kerja.alasan_penolakan:
+            body += f"- Alasan Penolakan: {log_kerja.alasan_penolakan}\n"
+        body += "\nTerima kasih."
+    else:
+        status_label = STATUS_LABELS.get(new_status, new_status)
+        subject = f"Diacc {role_penyetuju} ({current_user.nama}) - {user_pengaju.nama}"
+        body = (
+            f"Halo {user_pengaju.nama},\n\n"
+            f"Pengajuan penambahan kerja Anda telah diacc oleh {role_penyetuju} ({current_user.nama}).\n"
+        )
+
+        if new_status == "menunggu_hr":
+            body += f"Sekarang sedang menunggu persetujuan HR.\n\n"
+        elif new_status == "menunggu_pm" and pending_pm_names:
+            body += f"Masih menunggu persetujuan PM: {', '.join(pending_pm_names)}.\n\n"
+        else:
+            body += f"Sekarang sedang {status_label}.\n\n"
+
+        body += (
+            f"Detail Pengajuan:\n"
+            f"- Tanggal: {log_kerja.tanggal_mulai} s/d {log_kerja.tanggal_selesai} ({durasi} hari)\n"
+            f"- Keterangan: {log_kerja.keterangan_pengajuan}\n\n"
+            f"Terima kasih."
+        )
+
+    message = MessageSchema(
+        subject=subject,
+        recipients=[user_pengaju.email],
+        body=body,
+        subtype="plain",
+    )
+
+    fm = FastMail(_get_mail_config())
+    await fm.send_message(message)
+
+
+## generate pdf surat konfirmasi, dipanggil saat status final disetujui
 async def generate_surat_cuti(
     log_cuti: LogCuti,
     user_pengaju: User,
     current_user: User,
 ) -> None:
     if not user_pengaju.email:
+        
         return
 
     env = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)))

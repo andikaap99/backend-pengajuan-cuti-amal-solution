@@ -9,8 +9,8 @@ from app.db import get_db
 from app.models.user import User
 from app.schemas.user import ExecutiveOut
 from app.schemas.pengajuan import PersetujuanQueueCutiOut
-from app.schemas.pm import PMDashboardRingkasanOut, PMDashboardTimOut, PMPersetujuanRingkasanTimOut, PMHistoryPersetujuanOut, PMRekapCutiRingkasanOut, PMRekapCutiDetailJatah
-from app.services.pm_service import get_dashboard_ringkasan, get_dashboard_tim, get_ringkasan_tim, get_history_cuti_tim, get_rekap_cuti_ringkasan, get_rekap_cuti_detail
+from app.schemas.pm import PMDashboardRingkasanOut, PMDashboardTimOut, PMPersetujuanRingkasanTimOut, PMHistoryPersetujuanOut, PMRekapCutiRingkasanOut, PMRekapCutiDetailJatah, PMRekapPenambahanKerjaDetail
+from app.services.pm_service import get_dashboard_ringkasan, get_dashboard_tim, get_ringkasan_tim, get_history_cuti_tim, get_rekap_cuti_ringkasan, get_rekap_cuti_detail, get_rekap_penambahan_kerja_detail
 
 router = APIRouter(prefix="/pm", tags=["Project Manager"])
 
@@ -83,3 +83,13 @@ async def get_rekap_detail_cuti(
 ):
 
     return await get_rekap_cuti_detail(current_user.id_user, db)
+
+
+## detail rekap penambahan kerja per anggota tim
+@router.get("/rekap-pengajuan-kerja-detail", response_model=list[PMRekapPenambahanKerjaDetail])
+async def get_rekap_detail_pengajuan_kerja(
+    current_user: Annotated[User, Depends(require_role("pm"))],
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
+
+    return await get_rekap_penambahan_kerja_detail(current_user.id_user, db)

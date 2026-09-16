@@ -19,6 +19,7 @@ from app.routers.approval import router as approval_router
 from app.routers.role import router as role_router
 from app.services.holiday_quota_service import proses_cuti_hari_libur
 from app.services.auto_aktifkan_user_service import aktifkan_user_selesai_cuti
+from app.services.holiday_service import sync_holidays
 
 scheduler = AsyncIOScheduler()
 
@@ -33,19 +34,38 @@ async def job_aktifkan_user():
         await aktifkan_user_selesai_cuti(db)
 
 
+async def job_sync_holidays():
+    from datetime import date
+    year = date.today().year
+    async with async_session_factory() as db:
+        await sync_holidays(year, db)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # run sekali saat startup (handle holiday yang kelewat)
+    ## run sekali saat startup (handle holiday yang kelewat)
     async with async_session_factory() as db:
         await proses_cuti_hari_libur(db)
 
-    # run sekali saat startup (aktifkan user yang cutinya sudah selesai)
+    ## run sekali saat startup (aktifkan user yang cutinya sudah selesai)
     async with async_session_factory() as db:
         await aktifkan_user_selesai_cuti(db)
 
-    # schedule tiap jam 00:00
-    scheduler.add_job(job_holiday_quota, CronTrigger(hour=17, minute=0), timezone=timezone("Asia/Jakarta"))
-    scheduler.add_job(job_aktifkan_user, CronTrigger(hour=0, minute=5), timezone=timezone("Asia/Jakarta"))
+    ## run sekali saat startup (sync holiday jika belum ada data tahun ini)
+    from datetime import date
+    current_year = date.today().year
+    async with async_session_factory() as db:
+        from sqlalchemy import select
+        from app.models.holiday import Holiday
+        result = await db.execute(select(Holiday).where(Holiday.tahun == current_year).limit(1))
+        if not result.scalar_one_or_none():
+            await sync_holidays(current_year, db)
+
+    ## schedule tiap jam 00:00
+    scheduler.add_job(job_holiday_quota, CronTrigger(hour=0, minute=0), timezone=timezone("Asia/Jakarta"))
+    scheduler.add_job(job_aktifkan_user, CronTrigger(hour=0, minute=0), timezone=timezone("Asia/Jakarta"))
+    ## sync holiday otomatis tanggal 1 Januari tiap tahun jam 00:01
+    scheduler.add_job(job_sync_holidays, CronTrigger(month=1, day=1, hour=0, minute=1), timezone=timezone("Asia/Jakarta"))
     scheduler.start()
     yield
     scheduler.shutdown()
@@ -53,9 +73,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Management Cuti Karyawan API", lifespan=lifespan)
 
+origins = settings.CORS_ORIGINS.split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost", "http://localhost:5173", "https://amal.rutherweb.my.id"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

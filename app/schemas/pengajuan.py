@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
 
 from pydantic import BaseModel
@@ -16,3 +16,4 @@ class PersetujuanQueueCutiOut(BaseModel):
     pengganti: str
     sisa_cuti: int
     alasan: str
+    tanggal_pengajuan: datetime

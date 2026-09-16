@@ -1,0 +1,123 @@
+Changelog - 9 September 2026
+============================
+
+1. Many-to-Many Karyawan-PM Relationship
+-----------------------------------------
+- Menghapus kolom `id_pm` dari tabel `users` (satu karyawan bisa punya banyak PM)
+- Membuat tabel junction `user_pm` untuk relasi many-to-many karyawan-PM
+- Membuat tabel `log_cuti_approval_pm` untuk tracking approval per PM pada pengajuan cuti
+- Setiap pengajuan cuti akan membuat 1 row approval untuk setiap PM yang assigned
+- Status log_cuti berubah ke `menunggu_hr` hanya jika SEMUA PM sudah approve
+- Jika ada 1 PM saja yang reject, status langsung ke `ditolak_pm`
+
+File yang dibuat:
+- app/models/user_pm.py - model junction table
+- app/models/log_cuti_approval_pm.py - model approval per PM
+- alembic/versions/d2e3f4a5b6c7_update_many_to_many_karyawan_pm.py - migration
+
+File yang diubah:
+- app/models/user.py - hapus id_pm, hapus relasi manager/project_manager, tambah karyawan_pm_list/pm_karyawan_list/approval_pm_logs
+- app/models/log_cuti.py - hapus diproses_pm/processed_at_pm, tambah approval_pm_list
+- app/schemas/log_cuti.py - tambah ApprovalPMDetail schema
+- app/schemas/user.py - hapus id_pm dari register schemas
+- app/services/cuti_service.py - buat LogCutiApprovalPM rows saat submit
+- app/services/approval_service.py - PM approval update LogCutiApprovalPM, cek semua PM sebelum finalisasi
+- app/services/pm_service.py - semua team queries via UserPM junction table
+- app/services/hr_service.py - employee table via UserPM
+- app/services/kalender_service.py - calendar via UserPM
+- app/services/penambahan_kerja_service.py - team queries via UserPM
+- app/services/activity_service.py - PM activities via LogCutiApprovalPM
+- app/routers/approval.py - tambah endpoint GET /approval-pm-detail/{log_cuti_id}
+- app/routers/auth.py - hapus id_pm dari register endpoints
+- app/models/__init__.py - export UserPM dan LogCutiApprovalPM
+
+
+2. Many-to-Many Penambahan Kerja Approval PM
+----------------------------------------------
+- Membuat tabel `log_penambahan_kerja_approval_pm` untuk tracking approval per PM
+- Setiap pengajuan penambahan kerja akan membuat 1 row approval untuk setiap PM
+- Logika approval sama seperti cuti: semua PM harus approve → menunggu_hr
+
+File yang dibuat:
+- app/models/log_penambahan_kerja_approval_pm.py - model approval per PM
+- alembic/versions/e3f4a5b6c7d8_update_many_to_many_penambahan_kerja.py - migration
+
+File yang diubah:
+- app/models/log_penambahan_kerja.py - hapus diproses_pm/processed_at_pm, tambah approval_pm_list
+- app/schemas/penambahan_kerja.py - hapus diproses_pm/processed_at_pm, tambah PenambahanKerjaApprovalPMDetail
+- app/services/penambahan_kerja_service.py - buat approval rows saat submit, cek semua PM sebelum finalisasi
+- app/routers/approval.py - tambah endpoint GET /penambahan-kerja-pm-detail/{log_id}, support role hr
+- app/models/__init__.py - export LogPenambahanKerjaApprovalPM
+
+
+3. Penambahan Kerja: Semua Karyawan & Alur PM → HR
+-----------------------------------------------------
+- Semua karyawan bisa submit pengajuan kerja (bukan hanya dept 3)
+- Alur approval baru: PM approve → menunggu_hr → HR approve → disetujui_hr (FINAL)
+- HR bisa melihat queue penambahan kerja dan approve/decline
+- Menambah kolom `alasan_penolakan` dan `processed_at_hr` ke tabel log_penambahan_kerja
+
+File yang dibuat:
+- alembic/versions/f4a5b6c7d8e9_update_penambahan_kerja_hr_approval.py - migration
+
+File yang diubah:
+- app/models/log_penambahan_kerja.py - tambah kolom alasan_penolakan, processed_at_hr, update enum status
+- app/schemas/penambahan_kerja.py - update Literal status
+- app/services/penambahan_kerja_service.py - hapus filter dept 3, tambah process_penambahan_kerja_hr, get_penambahan_kerja_queue_hr
+- app/routers/approval.py - update require_role pm/hr di queue dan approval endpoints
+- app/routers/karyawan.py - tambah role hr di riwayat penambahan kerja
+- seed_demo.py - update data demo
+
+
+4. Email Notification Update
+------------------------------
+- Subject email sekarang menyertakan nama PM/HR yang approve: "Diacc Project Manager (Airin Ristiana) - Rizza Alyda Yahya"
+- Body email menambah keterangan status:
+  - Jika semua PM approve: "Sekarang sedang menunggu persetujuan HR."
+  - Jika belum semua PM approve: "Masih menunggu persetujuan PM: [nama PM yang belum acc]"
+- Fix missing db.commit() di PM approval path
+
+File yang diubah:
+- app/services/approval_service.py - tambah db.commit(), kirim pending_pm_names ke email
+- app/services/email_service.py - update subject dengan nama, update body dengan keterangan status
+
+
+5. Approval Queue: Support Semua Role
+---------------------------------------
+- GET /approval/approval-queue sekarang bisa diakses oleh PM, HR, dan Direktur
+- PM: lihat pengajuan dari team (via UserPM) dengan status menunggu_pm
+- HR: lihat semua pengajuan dengan status menunggu_hr
+- Direktur: lihat semua pengajuan dengan status menunggu_direktur
+
+File yang diubah:
+- app/services/approval_service.py - rewrite get_queue_card untuk support semua role
+
+
+6. Bug Fix: Ongoing Cuti Only Shows In-Progress
+--------------------------------------------------
+- GET /karyawan/cuti/ongoing sekarang hanya menampilkan pengajuan yang masih berjalan
+- Tidak termasuk status ditolak atau sudah final disetujui
+- Fix bug: _is_rejected_expired(None) → _is_rejected_expired(log)
+
+File yang diubah:
+- app/services/cuti_service.py - hapus REJECTED_STATUSES/APPROVED_STATUSES dari visible_statuses, fix zip bug
+
+
+7. Seed Demo Update
+---------------------
+- Menambah data demo untuk penambahan kerja dan approval PM
+- Menambah data user_pm untuk relasi many-to-many
+- Data demo mencakup berbagai status: menunggu_pm, menunggu_hr, disetujui_pm, dll
+
+File yang diubah:
+- seed_demo.py - tambah USER_PM_DATA, LOG_PENAMBAHAN_KERJA_DATA, LOG_PENAMBAHAN_KERJA_APPROVAL_PM_DATA
+
+
+8. API Documentation Update
+-----------------------------
+- Update API_DOCS.md untuk semua perubahan di atas
+- Menambah dokumentasi endpoint baru: approval-pm-detail, penambahan-kerja-pm-detail
+- Update alur approval di bagian Roles dan Status Cuti
+
+File yang diubah:
+- API_DOCS.md

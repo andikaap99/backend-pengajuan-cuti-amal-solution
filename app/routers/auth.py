@@ -9,7 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import create_access_token, get_current_user, hash_password, verify_password, require_role
 from app.db import get_db
 from app.models.user import User
+from app.models.user_pm import UserPM
 from app.schemas.user import Token, UserOut, UserRegister, UserMeOut, UserRegisterAdmin, ChangePassword, ChangePasswordMessage, ExecutiveOut, UpdateProfile, UpdateProfileMessage
+from app.services.cuti_service import hitung_cuti_terpakai
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -31,6 +33,7 @@ async def login(
         )
 
     access_token = create_access_token(data={"id_user": user.id_user, "role": user.role})
+    
     return Token(access_token=access_token)
 
 
@@ -53,11 +56,11 @@ async def register(
         password=hash_password(data.password),
         role="karyawan",
         id_departemen=data.id_departemen,
-        id_pm=data.id_pm,
     )
     db.add(user)
     await db.commit()
     await db.refresh(user)
+
     return user
 
 ## route register
@@ -80,7 +83,6 @@ async def register(
         password=hash_password(data.password),
         role=data.role.lower(),
         id_departemen=data.id_departemen,
-        id_pm=data.id_pm,
         email=data.email,
         no_telp=data.no_telp,
         tanggal_bergabung=data.tanggal_bergabung,
@@ -88,6 +90,21 @@ async def register(
     db.add(user)
     await db.commit()
     await db.refresh(user)
+
+    ## handle PM assignment untuk role karyawan
+    if data.role.lower() == "karyawan" and data.id_pm_list:
+        for pm_id in data.id_pm_list:
+            result_pm = await db.execute(select(User).where(User.id_user == pm_id, User.role == "pm"))
+            pm_user = result_pm.scalar_one_or_none()
+            if not pm_user:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"User dengan ID {pm_id} tidak ditemukan atau bukan role PM!",
+                )
+            new_pm = UserPM(id_karyawan=user.id_user, id_pm=pm_id)
+            db.add(new_pm)
+        await db.commit()
+
     return user
 
 @router.put("/change-password", response_model=ChangePasswordMessage)
@@ -123,10 +140,25 @@ async def change_password(
 @router.get("/me", response_model=UserMeOut)
 async def get_me(current_user: Annotated[User, Depends(get_current_user)], db: Annotated[AsyncSession, Depends(get_db)]):
     result = await db.execute(
-        select(User).options(selectinload(User.manager)).where(User.id_user == current_user.id_user)
+        select(User).where(User.id_user == current_user.id_user)
     )
     user = result.scalar_one()
-    return user
+
+    cuti_terpakai = await hitung_cuti_terpakai(user.id_user, db)
+
+    return UserMeOut(
+        id_user=user.id_user,
+        username=user.username,
+        nama=user.nama,
+        role=user.role,
+        id_departemen=user.id_departemen,
+        total_cuti=user.total_cuti,
+        cuti_terpakai=cuti_terpakai,
+        sisa_cuti=user.sisa_cuti,
+        email=user.email,
+        no_telp=user.no_telp,
+        tanggal_bergabung=user.tanggal_bergabung,
+    )
 
 
 ## route get all users
@@ -146,12 +178,8 @@ async def update_profile(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    if data.email is not None:
-        current_user.email = data.email
     if data.no_telp is not None:
         current_user.no_telp = data.no_telp
-    if data.tanggal_bergabung is not None:
-        current_user.tanggal_bergabung = data.tanggal_bergabung
 
     db.add(current_user)
     await db.commit()

@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.holiday import Holiday
 from app.schemas.holiday import NextCutiBersamaOut
+from datetime import timedelta
 
 
 async def sync_holidays(year: int, db: AsyncSession) -> int:
@@ -46,12 +47,11 @@ async def sync_holidays(year: int, db: AsyncSession) -> int:
         inserted += 1
 
     await db.commit()
+
     return inserted
 
 
 async def get_next_cuti_bersama(db: AsyncSession) -> NextCutiBersamaOut | None:
-    from datetime import timedelta
-
     today = date.today()
 
     result = await db.execute(
@@ -86,7 +86,6 @@ async def get_next_cuti_bersama(db: AsyncSession) -> NextCutiBersamaOut | None:
 
 
 async def get_next_pending_holiday_days(db: AsyncSession) -> int:
-    """ambil total hari cuti bersama yang belum diproses (sudah_dikurangi = False)"""
     from datetime import timedelta
 
     today = date.today()
@@ -103,9 +102,9 @@ async def get_next_pending_holiday_days(db: AsyncSession) -> int:
     holidays = result.scalars().all()
 
     if not holidays:
+        
         return 0
 
-    # hitung total hari cuti bersama berurutan
     tanggal_mulai = holidays[0].tanggal
     tanggal_selesai = holidays[0].tanggal
 

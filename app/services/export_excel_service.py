@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.log_cuti import LogCuti
 from app.models.user import User
-from app.services.tambah_cuti_service import get_effective_sisa_cuti
+from app.services.cuti_service import hitung_cuti_terpakai
 
 BULAN_INDONESIA = {
     1: "Januari", 2: "Februari", 3: "Maret", 4: "April",
@@ -53,11 +53,11 @@ def _format_dates(logs: list[LogCuti]) -> str:
 
 
 async def export_cuti_excel(year: int, db: AsyncSession) -> bytes:
-    approved_statuses = ["disetujui_hr", "disetujui_direktur"]
+    approved_statuses = ["disetujui_hr", "disetujui_direktur", "cuti_bersama"]
 
     result_users = await db.execute(
         select(User)
-        .where(User.role.in_(["karyawan", "pm", "hr"]))
+        .where(User.role.in_(["karyawan", "pm", "hr", "staff_hr"]))
         .order_by(User.nama.asc())
     )
     users = result_users.scalars().all()
@@ -97,8 +97,7 @@ async def export_cuti_excel(year: int, db: AsyncSession) -> bytes:
         )
         logs = result_logs.scalars().all()
 
-        effective_sisa = await get_effective_sisa_cuti(user, year, db)
-        cuti_terpakai = user.total_cuti - effective_sisa
+        cuti_terpakai = await hitung_cuti_terpakai(user.id_user, db)
         keterangan = _format_dates(logs)
 
         ws.cell(row=row, column=1, value=no).border = border
@@ -109,7 +108,7 @@ async def export_cuti_excel(year: int, db: AsyncSession) -> bytes:
         ws.cell(row=row, column=3).alignment = Alignment(horizontal="center")
         ws.cell(row=row, column=4, value=cuti_terpakai).border = border
         ws.cell(row=row, column=4).alignment = Alignment(horizontal="center")
-        ws.cell(row=row, column=5, value=effective_sisa).border = border
+        ws.cell(row=row, column=5, value=user.sisa_cuti).border = border
         ws.cell(row=row, column=5).alignment = Alignment(horizontal="center")
         ws.cell(row=row, column=6, value=keterangan).border = border
 
@@ -126,4 +125,5 @@ async def export_cuti_excel(year: int, db: AsyncSession) -> bytes:
     buffer = BytesIO()
     wb.save(buffer)
     buffer.seek(0)
+    
     return buffer.getvalue()

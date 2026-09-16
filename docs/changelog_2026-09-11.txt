@@ -1,0 +1,88 @@
+Changelog - 11 September 2026
+============================
+
+1. Fix cuti_terpakai Calculation
+---------------------------------
+- `cuti_terpakai` sekarang dihitung via `hitung_cuti_terpakai()` yang menjumlahkan `DATEDIFF(tanggal_selesai, tanggal_mulai) + 1` dari `log_cuti` where status final (`disetujui_hr` atau `disetujui_direktur`)
+- Sebelumnya menggunakan `total_cuti - sisa_cuti` yang rusak saat HR menambah cuti bulk
+
+File yang dibuat:
+- app/services/cuti_service.py - fungsi `hitung_cuti_terpakai()`
+
+File yang diubah:
+- app/services/hr_service.py - `get_rekapitulasi_cuti` + `get_daftar_cuti_karyawan` pakai `hitung_cuti_terpakai`
+- app/services/pm_service.py - dashboard ringkasan pakai `hitung_cuti_terpakai`
+- app/services/export_excel_service.py - excel export pakai `hitung_cuti_terpakai`
+- app/schemas/hr.py - `HRRekapitulasiOut` punya field `cuti_terpakai`
+- app/schemas/user.py - `UserMeOut` punya field `cuti_terpakai`
+- app/routers/auth.py - `/me` endpoint return `cuti_terpakai`
+
+
+2. Seed Demo Rewrite
+---------------------
+- Seed demo hanya insert `departemen` + `users` + `user_pm`
+- Log cuti dan penambahan kerja di-comment out
+- Menambah user: Rafly (id=9, staff_hr), Ardi (id=10, pm)
+- Semua dept 1 email: `andika.10123196@mahasiswa.unikom.ac.id`
+- Semua karyawan email: `irinristi@gmail.com`
+- Semua `sisa_cuti = 12`
+- Karyawan non-dept-1 PM assignments: Rizza → Airin+Topik+Ardi, Rissa → Airin+Topik+Ardi, Arneta → Airin only
+
+File yang diubah:
+- seed_demo.py
+
+
+3. DateTime Migration untuk Approval Timestamps
+------------------------------------------------
+- Mengubah `tanggal_pengajuan`, `processed_at_hr`, `processed_at_direktur`, `edited_at` dari `Date` → `DateTime`
+- PM approval `processed_at` juga diubah ke `DateTime`
+
+File yang diubah:
+- app/models/log_cuti.py - DateTime untuk approval fields
+- app/models/log_cuti_approval_pm.py - DateTime untuk `processed_at`
+- app/models/log_penambahan_kerja.py - DateTime untuk approval fields
+- app/models/log_penambahan_kerja_approval_pm.py - DateTime untuk `processed_at`
+- app/schemas/log_cuti.py - datetime fields untuk approval timestamps
+- app/schemas/penambahan_kerja.py - datetime fields
+- app/schemas/pengajuan.py - datetime untuk `tanggal_pengajuan`
+- app/schemas/hr.py - datetime fields
+- app/schemas/pm.py - datetime untuk `tanggal_pengajuan`
+- app/schemas/user.py - datetime untuk `ActivityOut.tanggal`
+- app/services/approval_service.py - `date.today()` → `datetime.now()`
+- app/services/penambahan_kerja_service.py - `date.today()` → `datetime.now()`
+- app/services/activity_service.py - `datetime.min` untuk sorting
+- seed_demo.py - datetime fields
+
+File yang dibuat:
+- alembic/versions/a1b2c3d4e5f6_convert_date_to_datetime_approval.py - migration
+
+
+4. Email Notifikasi Lengkap untuk Approval Flow
+-------------------------------------------------
+- PM approve → status `menunggu_hr`: kirim email ke HR/staff_hr
+- HR approve (HR/staff_hr submit) → status `menunggu_direktur`: kirim email ke Direktur
+- Sama untuk penambahan_kerja flow
+
+File yang diubah:
+- app/services/approval_service.py - tambah email ke HR setelah PM approve, email ke Direktur setelah HR approve
+- app/services/penambahan_kerja_service.py - tambah email ke HR setelah PM approve
+
+
+5. Fix Bug process_penambahan_kerja
+-------------------------------------
+- Bug: `current_user` undefined di `process_penambahan_kerja` (parameter `pm_id: int`)
+- Fix: query `pm_user` dari `pm_id`
+
+File yang diubah:
+- app/services/penambahan_kerja_service.py
+
+
+6. PM Names di Penambahan Kerja
+--------------------------------
+- Menambah `approval_pm_detail` ke `PenambahanKerjaOut` dengan format:
+  `[{"nama_pm": "...", "status": "...", "processed_at": "..."}]`
+- `PenambahanKerjaApprovalPMDetail` didefinisikan sebelum `PenambahanKerjaOut` (fix NameError)
+
+File yang diubah:
+- app/schemas/penambahan_kerja.py - tambah `PenambahanKerjaApprovalPMDetail`, pindahkan definisi ke atas
+- app/services/penambahan_kerja_service.py - query `approval_pm_list` + `pm` relationship

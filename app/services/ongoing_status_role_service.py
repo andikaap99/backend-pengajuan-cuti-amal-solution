@@ -16,6 +16,8 @@ def get_ongoing_statuses(user: User) -> list[str]:
             return ["menunggu_hr"]
         case "hr":
             return ["menunggu_direktur"]
+        case "staff_hr":
+            return ["menunggu_hr"]
         
     return []
 
@@ -32,6 +34,26 @@ def get_rejected_statuses(user: User) -> list[str]:
             return ["ditolak_hr"]
         case "hr":
             return ["ditolak_direktur"]
+        case "staff_hr":
+            return ["ditolak_hr"]
+        
+    return []
+
+
+## fungsi untuk get status selesai sesuai role
+def get_finished_statuses(user: User) -> list[str]:
+    match user.role:
+        case "karyawan":
+            if user.id_departemen != 1:
+                return ["disetujui_hr", "ditolak_pm", "ditolak_hr", "cuti_bersama"]
+            else:
+                return ["disetujui_hr", "ditolak_hr", "cuti_bersama"]
+        case "pm":
+            return ["disetujui_hr", "ditolak_hr", "cuti_bersama"]
+        case "hr":
+            return ["disetujui_direktur", "ditolak_direktur", "cuti_bersama"]
+        case "staff_hr":
+            return ["disetujui_hr", "ditolak_hr", "cuti_bersama"]
         
     return []
 

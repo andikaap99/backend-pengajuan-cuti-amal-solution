@@ -9,6 +9,7 @@ ROLES = [
     {"id": 2, "nama": "pm"},
     {"id": 3, "nama": "hr"},
     {"id": 4, "nama": "direktur"},
+    {"id": 5, "nama": "staff_hr"},
 ]
 
 

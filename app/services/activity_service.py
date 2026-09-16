@@ -1,10 +1,11 @@
-from datetime import date
+from datetime import datetime
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.log_cuti import LogCuti
+from app.models.log_cuti_approval_pm import LogCutiApprovalPM
 from app.models.user import User
 from app.schemas.user import ActivityOut
 
@@ -30,16 +31,55 @@ async def get_recent_activities(user_id: int, db: AsyncSession) -> list[Activity
             tanggal=log.tanggal_pengajuan or log.tanggal_mulai,
         ))
 
-    # === 2. Acc / Decline (hanya PM, HR, Direktur) ===
-    if user.role in ("pm", "hr", "direktur"):
-        # tentukan kolom berdasarkan role
+    ## acc / decline (hanya pm via log_cuti_approval_pm)
+    if user.role == "pm":
+        ## query log approval pm yang diproses oleh pm ini
+        result_acc = await db.execute(
+            select(LogCutiApprovalPM)
+            .options(selectinload(LogCutiApprovalPM.log_cuti).selectinload(LogCuti.user_log))
+            .where(
+                LogCutiApprovalPM.id_pm == user_id,
+                LogCutiApprovalPM.status == "disetujui",
+            )
+        )
+        logs_acc = result_acc.scalars().all()
+
+        for approval in logs_acc:
+            if approval.log_cuti and approval.log_cuti.user_log:
+                activities.append(ActivityOut(
+                    jenis_aktivitas="acc",
+                    keterangan=f"Menyetujui cuti {approval.log_cuti.user_log.nama}",
+                    tanggal=approval.processed_at,
+                ))
+
+        ## query log approval pm yang ditolak
+        result_decline = await db.execute(
+            select(LogCutiApprovalPM)
+            .options(selectinload(LogCutiApprovalPM.log_cuti).selectinload(LogCuti.user_log))
+            .where(
+                LogCutiApprovalPM.id_pm == user_id,
+                LogCutiApprovalPM.status == "ditolak",
+            )
+        )
+        logs_decline = result_decline.scalars().all()
+
+        for approval in logs_decline:
+            if approval.log_cuti and approval.log_cuti.user_log:
+                activities.append(ActivityOut(
+                    jenis_aktivitas="decline",
+                    keterangan=f"Menolak cuti {approval.log_cuti.user_log.nama}",
+                    tanggal=approval.processed_at,
+                ))
+
+    ## acc / decline (hr dan direktur)
+    if user.role in ("hr", "direktur", "staff_hr"):
         match user.role:
-            case "pm":
-                kolom_approve = LogCuti.diproses_pm
-                kolom_tanggal = LogCuti.processed_at_pm
-                status_acc = "disetujui_pm"
-                status_decline = "ditolak_pm"
             case "hr":
+                kolom_approve = LogCuti.diproses_hr
+                kolom_tanggal = LogCuti.processed_at_hr
+                status_acc = "disetujui_hr"
+                status_decline = "ditolak_hr"
+            case "staff_hr":
                 kolom_approve = LogCuti.diproses_hr
                 kolom_tanggal = LogCuti.processed_at_hr
                 status_acc = "disetujui_hr"
@@ -50,7 +90,7 @@ async def get_recent_activities(user_id: int, db: AsyncSession) -> list[Activity
                 status_acc = "disetujui_direktur"
                 status_decline = "ditolak_direktur"
 
-        # query log yang di-acc
+        ## query log yang diacc
         result_acc = await db.execute(
             select(LogCuti).options(selectinload(LogCuti.user_log)).where(
                 kolom_approve == user_id,
@@ -66,7 +106,7 @@ async def get_recent_activities(user_id: int, db: AsyncSession) -> list[Activity
                 tanggal=getattr(log, kolom_tanggal.key),
             ))
 
-        # query log yang ditolak
+        ## query log yang ditolak
         result_decline = await db.execute(
             select(LogCuti).options(selectinload(LogCuti.user_log)).where(
                 kolom_approve == user_id,
@@ -82,6 +122,7 @@ async def get_recent_activities(user_id: int, db: AsyncSession) -> list[Activity
                 tanggal=getattr(log, kolom_tanggal.key),
             ))
 
-    # === 3. Sort by tanggal terbaru, ambil 3 teratas ===
-    activities.sort(key=lambda x: x.tanggal, reverse=True)
+    ## sort by tanggal terbaru, ambil 3 teratas
+    activities.sort(key=lambda x: x.tanggal if x.tanggal else datetime.min, reverse=True)
+    
     return activities[:3]

@@ -1,11 +1,11 @@
-from datetime import date
+from datetime import date, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.holiday import Holiday
 from app.models.user import User
 from app.models.log_penambahan_kerja import LogPenambahanKerja
-from app.services.tambah_cuti_service import konsumsi_cuti
+from app.models.log_cuti import LogCuti
 
 
 async def proses_cuti_hari_libur(db: AsyncSession) -> int:
@@ -35,7 +35,7 @@ async def proses_cuti_hari_libur(db: AsyncSession) -> int:
 
     excluded_user_ids = user_kerja_ids & user_dept3_ids
 
-    query = select(User).where(User.role.in_(["karyawan", "pm", "hr"]))
+    query = select(User).where(User.role.in_(["karyawan", "pm", "staff_hr", "hr"]))
     if excluded_user_ids:
         query = query.where(User.id_user.notin_(excluded_user_ids))
 
@@ -43,8 +43,31 @@ async def proses_cuti_hari_libur(db: AsyncSession) -> int:
     users = result_users.scalars().all()
 
     for user in users:
-        if user.jatah_tambahan > 0 or user.sisa_cuti > 0:
-            await konsumsi_cuti(user, jumlah_hari, db)
+        if user.sisa_cuti > 0:
+            user.sisa_cuti -= jumlah_hari
+            db.add(user)
+
+        for holiday in holidays:
+            if user.role == "hr":
+                log_status = "disetujui_direktur"
+            else:
+                log_status = "disetujui_hr"
+
+            log = LogCuti(
+                id_user=user.id_user,
+                jenis_cuti="cuti bersama",
+                tanggal_mulai=holiday.tanggal,
+                tanggal_selesai=holiday.tanggal,
+                keterangan_cuti="Potongan cuti bersama nasional",
+                status=log_status,
+                tanggal_pengajuan=datetime.now(),
+                pengganti=None,
+                alasan_penolakan=None,
+                diproses_hr=None,
+                diproses_direktur=None,
+                edited_at=None,
+            )
+            db.add(log)
 
     for holiday in holidays:
         holiday.sudah_dikurangi = True

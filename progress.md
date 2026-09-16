@@ -292,3 +292,35 @@ alembic upgrade head
 # Jalankan seeder
 python seed_demo.py --force
 ```
+
+---
+
+# Progress - 13 September 2026
+
+## Pengajuan Kerja - Approval Flow Sama dengan Cuti
+
+### Model Changes (`log_penambahan_kerja.py`)
+- Tambah kolom `diproses_hr` (FK ke users) untuk track HR yang approve
+- Tambah kolom `keterangan_disetujui_hr` (Text) untuk catatan approval HR
+- Tambah `menunggu_direktur` ke status Enum
+
+### Flow Baru (sama dengan cuti)
+| Role Pengaju | Flow |
+|---|---|
+| Karyawan dept≠1 | menunggu_pm → menunggu_hr → disetujui_hr |
+| Karyawan dept=1/PM | menunggu_hr → disetujui_hr |
+| HR / staff_hr | menunggu_hr → **menunggu_direktur** → disetujui_hr |
+| Direktur | ❌ Tidak boleh mengajukan |
+
+### Service Changes (`penambahan_kerja_service.py`)
+- `create_penambahan_kerja()`: gunakan `get_ongoing_statuses(user)[0]` (dynamic), bukan hardcode `menunggu_pm`
+- `process_penambahan_kerja_hr()`: HR approve → kalau submitter HR/staff_hr, lanjut `menunggu_direktur`; kalau karyawan, FINAL `disetujui_hr`
+- `process_penambahan_kerja_direktur()`: Direktur approve → FINAL `disetujui_hr` + isi `diproses_hr` dan `keterangan_disetujui_hr`
+- `get_penambahan_kerja_queue_direktur()`: queue untuk direktur (status `menunggu_direktur`)
+
+### Router Changes
+- `karyawan.py`: role restriction `karyawan` → `karyawan, pm, hr, staff_hr`
+- `approval.py`: tambah `direktur` ke role check penambahan_kerja, tambah `get_penambahan_kerja_queue_direktur` import
+
+### Migration
+- `fdf3abe4ca8b`: tambah kolom `diproses_hr`, `keterangan_disetujui_hr`, update enum status

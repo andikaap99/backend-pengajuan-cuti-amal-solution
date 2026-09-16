@@ -7,6 +7,7 @@ from app.models.departemen import Departemen
 
 async def get_all_departements(db: AsyncSession) -> list[Departemen]:
     result = await db.execute(select(Departemen))
+
     return result.scalars().all()
 
 
@@ -20,6 +21,7 @@ async def get_departement_by_id(db: AsyncSession, departemen_id: int) -> Departe
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Departemen tidak ditemukan",
         )
+    
     return departemen
 
 
@@ -37,6 +39,7 @@ async def create_departemen(db: AsyncSession, nama_departemen: str) -> Departeme
     db.add(departemen)
     await db.commit()
     await db.refresh(departemen)
+
     return departemen
 
 
@@ -58,4 +61,5 @@ async def update_departemen(
     departemen.nama_departemen = nama_departemen
     await db.commit()
     await db.refresh(departemen)
+    
     return departemen

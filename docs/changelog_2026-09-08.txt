@@ -1,0 +1,52 @@
+Changelog - 8 September 2026
+============================
+
+1. Simplifikasi Sistem Jatah Cuti
+----------------------------------
+- Menghapus field `jatah_tambahan` dari tabel `users` (model, schema, database)
+- Seluruh sistem cuti sekarang menggunakan `sisa_cuti` secara langsung
+- Fungsi `get_effective_sisa_cuti` dihapus dari semua service
+- `log_cuti_ekstra` tetap ada sebagai audit trail penambahan cuti
+
+File yang diubah:
+- app/models/user.py - hapus kolom jatah_tambahan
+- app/schemas/user.py - hapus jatah_tambahan dari UserMeOut
+- app/services/tambah_cuti_service.py - rewrite: tambah_sisa_cuti -> tambah_sisa_cuti_semua (bulk untuk semua user)
+- app/services/minus_cuti_service.py - langsung deduct sisa_cuti
+- app/services/holiday_quota_service.py - langsung deduct sisa_cuti tanpa dependency konsumsi_cuti
+- app/services/cuti_service.py - hapus import get_effective_sisa_cuti, gunakan user.sisa_cuti langsung
+- app/services/approval_service.py - hapus import get_effective_sisa_cuti
+- app/services/hr_service.py - hapus import get_effective_sisa_cuti
+- app/services/pm_service.py - hapus import get_effective_sisa_cuti
+- app/services/export_excel_service.py - hapus import get_effective_sisa_cuti
+- alembic/versions/c1d2e3f4a5b6_drop_jatah_tambahan_from_users.py - migration baru
+
+
+2. Endpoint /hr/tambah-cuti diubah ke mode bulk
+-------------------------------------------------
+- Sekarang menambah +1 sisa_cuti untuk SEMUA user (karyawan, pm, hr) sekaligus
+- Request body hanya perlu `keterangan` (tanpa `id_user` dan `jumlah_hari`)
+- Response berupa list LogCutiEkstraOut untuk setiap user
+
+File yang diubah:
+- app/schemas/log_cuti_ekstra.py - hapus id_user dan jumlah_hari dari LogCutiEkstraCreate
+- app/services/tambah_cuti_service.py - fungsi baru tambah_sisa_cuti_semua
+- app/routers/hr.py - update endpoint dan import
+
+
+3. Validasi pengajuan cuti: cegah double submit
+-------------------------------------------------
+- Jika user masih memiliki pengajuan cuti aktif (menunggu_pm, menunggu_hr, menunggu_direktur), dia tidak bisa mengajukan cuti baru
+- Pesan error: "Masih ada pengajuan cuti yang sedang diproses"
+
+File yang diubah:
+- app/services/cuti_service.py - tambah check aktif_statuses di create_pengajuan_cuti
+
+
+4. PM Dashboard: tambah field jatah_cuti
+-----------------------------------------
+- Response PMDashboardRingkasanOut sekarang menyertakan `jatah_cuti` (total_cuti = 12)
+
+File yang diubah:
+- app/schemas/pm.py - tambah field jatah_cuti ke PMDashboardRingkasanOut
+- app/services/pm_service.py - isi jatah_cuti dari pm.total_cuti (termasuk early return)
