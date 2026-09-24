@@ -87,6 +87,7 @@ class ChangePassword(BaseModel):
 
 ## data update profile
 class UpdateProfile(BaseModel):
+    email: Optional[str] = None
     no_telp: Optional[str] = None
 
 

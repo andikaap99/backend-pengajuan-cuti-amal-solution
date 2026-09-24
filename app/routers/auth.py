@@ -188,6 +188,9 @@ async def update_profile(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
+    if data.email is not None:
+        current_user.email = data.email
+
     if data.no_telp is not None:
         current_user.no_telp = data.no_telp
 
