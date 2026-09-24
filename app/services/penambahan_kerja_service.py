@@ -140,6 +140,10 @@ async def create_penambahan_kerja(user_id: int, tanggal: list[date], keterangan:
         status=log.status,
         tanggal_pengajuan=log.tanggal_pengajuan,
         approval_pm_detail=[],
+        approved_by_hr=None,
+        approved_at_hr=log.processed_at_hr,
+        approved_by_direktur=None,
+        approved_at_direktur=log.processed_at_direktur,
     )
 
 
@@ -171,6 +175,12 @@ async def get_my_penambahan_kerja(user_id: int, db: AsyncSession, user: User = N
         ) for apm in latest.approval_pm_list if apm.pm
     ]
 
+    approver_ids = [i for i in (latest.diproses_hr, latest.diproses_direktur) if i]
+    map_approver = {}
+    if approver_ids:
+        result_users = await db.execute(select(User).where(User.id_user.in_(approver_ids)))
+        map_approver = {u.id_user: u.nama for u in result_users.scalars().all()}
+
     return [PenambahanKerjaOut(
         id_pengajuan_kerja=latest.id_pengajuan_kerja,
         id_user=latest.id_user,
@@ -179,6 +189,10 @@ async def get_my_penambahan_kerja(user_id: int, db: AsyncSession, user: User = N
         status=latest.status,
         tanggal_pengajuan=latest.tanggal_pengajuan,
         approval_pm_detail=approval_pm_detail,
+        approved_by_hr=map_approver.get(latest.diproses_hr),
+        approved_at_hr=latest.processed_at_hr,
+        approved_by_direktur=map_approver.get(latest.diproses_direktur),
+        approved_at_direktur=latest.processed_at_direktur,
     )]
 
 

@@ -23,6 +23,10 @@ class PenambahanKerjaOut(BaseModel):
     status: Literal["menunggu_pm", "disetujui_pm", "ditolak_pm", "menunggu_hr", "disetujui_hr", "ditolak_hr", "menunggu_direktur", "disetujui_direktur", "ditolak_direktur"]
     tanggal_pengajuan: Optional[datetime] = None
     approval_pm_detail: list[PenambahanKerjaApprovalPMDetail] = []
+    approved_by_hr: Optional[str] = None
+    approved_at_hr: Optional[datetime] = None
+    approved_by_direktur: Optional[str] = None
+    approved_at_direktur: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
