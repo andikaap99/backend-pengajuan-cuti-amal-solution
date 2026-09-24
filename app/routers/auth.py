@@ -188,6 +188,15 @@ async def update_profile(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
+    if data.username is not None and data.username != current_user.username:
+        result = await db.execute(select(User).where(User.username == data.username))
+        if result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username sudah terdaftar",
+            )
+        current_user.username = data.username
+
     if data.email is not None:
         current_user.email = data.email
 

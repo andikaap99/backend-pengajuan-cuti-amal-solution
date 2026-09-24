@@ -87,8 +87,18 @@ class ChangePassword(BaseModel):
 
 ## data update profile
 class UpdateProfile(BaseModel):
+    username: Optional[str] = None
     email: Optional[str] = None
     no_telp: Optional[str] = None
+
+    @field_validator("username")
+    @classmethod
+    def username_tanpa_spasi(cls, v):
+        if v is None:
+            return v
+        if " " in v:
+            raise ValueError("Username tidak boleh mengandung spasi")
+        return v
 
 
 class UpdateProfileMessage(BaseModel):
