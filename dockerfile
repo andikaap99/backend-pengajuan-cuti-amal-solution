@@ -1,20 +1,49 @@
-FROM python:3.12-slim
+# FROM python:3.12-slim
+
+# WORKDIR /app
+
+# RUN apt-get update && apt-get install -y \
+#     libpango-1.0-0 \
+#     libpangocairo-1.0-0 \
+#     libgdk-pixbuf-2.0-0 \
+#     libffi-dev \
+#     shared-mime-info \
+#     && rm -rf /var/lib/apt/lists/*
+
+# COPY requirements.txt .
+# RUN pip install --no-cache-dir -r requirements.txt
+
+# COPY . .
+
+# EXPOSE 8000
+
+# CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+FROM python:3.12-alpine
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
-    libpango-1.0-0 \
-    libpangocairo-1.0-0 \
-    libgdk-pixbuf-2.0-0 \
-    libffi-dev \
+RUN apk add --no-cache \
+    pango \
+    cairo \
+    gdk-pixbuf \
+    libffi \
     shared-mime-info \
-    && rm -rf /var/lib/apt/lists/*
+    font-dejavu \
+    gcc \
+    musl-dev \
+    python3-dev \
+    libffi-dev \
+    openjpeg-dev \
+    zlib-dev \
+    jpeg-dev \
+    netcat-openbsd
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-EXPOSE 8000
+EXPOSE 8001
 
-CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000
+CMD sh -c "until nc -z db 3306; do echo 'Menunggu Database MySQL siap...'; sleep 2; done; echo 'Database MySQL siap! Menjalankan migrasi...'; alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8001"

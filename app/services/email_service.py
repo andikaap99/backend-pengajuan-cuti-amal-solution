@@ -7,10 +7,11 @@ from jinja2 import Environment, FileSystemLoader
 from starlette.datastructures import UploadFile
 from weasyprint import HTML
 
-from app.core.config import mail_settings
+from app.core.config import mail_settings, settings
 from app.models.log_cuti import LogCuti
 from app.models.log_penambahan_kerja import LogPenambahanKerja
 from app.models.user import User
+from app.services.date_format_service import format_tanggal_grouped
 
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
 
@@ -29,7 +30,7 @@ STATUS_LABELS = {
 ROLE_LABELS = {
     "karyawan": "Karyawan",
     "pm": "Project Manager",
-    "hr": "Human Resources",
+    "hr_manager": "Human Resources",
     "direktur": "Direktur",
     "staff_hr": "Staff HR",
 }
@@ -60,7 +61,9 @@ async def send_status_email(
     if not user_pengaju.email:
         return
 
-    durasi = (log_cuti.tanggal_selesai - log_cuti.tanggal_mulai).days + 1
+    tanggal_cuti = sorted([ld.tanggal for ld in log_cuti.tanggal_list])
+    durasi = len(tanggal_cuti)
+    tgl_str = format_tanggal_grouped(tanggal_cuti)
     role_penyetuju = ROLE_LABELS.get(current_user.role, current_user.role)
 
     if new_status.startswith("ditolak"):
@@ -70,7 +73,7 @@ async def send_status_email(
             f"Pengajuan cuti Anda telah ditolak oleh {role_penyetuju} ({current_user.nama}).\n\n"
             f"Detail Pengajuan:\n"
             f"- Jenis Cuti: {log_cuti.jenis_cuti}\n"
-            f"- Tanggal: {log_cuti.tanggal_mulai} s/d {log_cuti.tanggal_selesai} ({durasi} hari)\n"
+            f"- Tanggal: {tgl_str} ({durasi} hari)\n"
         )
         if log_cuti.alasan_penolakan:
             body += f"- Alasan Penolakan: {log_cuti.alasan_penolakan}\n"
@@ -93,7 +96,7 @@ async def send_status_email(
         body += (
             f"Detail Pengajuan:\n"
             f"- Jenis Cuti: {log_cuti.jenis_cuti}\n"
-            f"- Tanggal: {log_cuti.tanggal_mulai} s/d {log_cuti.tanggal_selesai} ({durasi} hari)\n\n"
+            f"- Tanggal: {tgl_str} ({durasi} hari)\n\n"
             f"Terima kasih.\nSalam,\nTim HR Amal Solution"
         )
 
@@ -113,22 +116,23 @@ async def send_pengajuan_notification(
     user_pengaju: User,
     approver: User,
     jenis_pengajuan: str,
-    tanggal_mulai: date,
-    tanggal_selesai: date,
+    tanggal: list[date],
     keterangan: str,
 ) -> None:
     if not approver.email:
 
         return
 
-    durasi = (tanggal_selesai - tanggal_mulai).days + 1
+    tanggal_sorted = sorted(tanggal)
+    durasi = len(tanggal_sorted)
+    tgl_str = format_tanggal_grouped(tanggal_sorted)
 
     subject = f"Pengajuan {jenis_pengajuan} Baru - {user_pengaju.nama}"
     body = (
         f"Halo {approver.nama},\n\n"
         f"Karyawan {user_pengaju.nama} telah mengajukan {jenis_pengajuan}.\n\n"
         f"Detail Pengajuan:\n"
-        f"- Tanggal: {tanggal_mulai} s/d {tanggal_selesai} ({durasi} hari)\n"
+        f"- Tanggal: {tgl_str} ({durasi} hari)\n"
         f"- Keterangan: {keterangan}\n\n"
         f"Silakan proses pengajuan ini di halaman approval.\n\n"
         f"Terima kasih."
@@ -157,7 +161,9 @@ async def send_penambahan_kerja_status_email(
 
         return
 
-    durasi = (log_kerja.tanggal_selesai - log_kerja.tanggal_mulai).days + 1
+    tanggal_kerja = sorted([ld.tanggal for ld in log_kerja.tanggal_list])
+    durasi = len(tanggal_kerja)
+    tgl_str = format_tanggal_grouped(tanggal_kerja)
     role_penyetuju = ROLE_LABELS.get(current_user.role, current_user.role)
 
     if new_status.startswith("ditolak"):
@@ -166,7 +172,7 @@ async def send_penambahan_kerja_status_email(
             f"Halo {user_pengaju.nama},\n\n"
             f"Pengajuan penambahan kerja Anda telah ditolak oleh {role_penyetuju} ({current_user.nama}).\n\n"
             f"Detail Pengajuan:\n"
-            f"- Tanggal: {log_kerja.tanggal_mulai} s/d {log_kerja.tanggal_selesai} ({durasi} hari)\n"
+            f"- Tanggal: {tgl_str} ({durasi} hari)\n"
             f"- Keterangan: {log_kerja.keterangan_pengajuan}\n"
         )
         if log_kerja.alasan_penolakan:
@@ -189,7 +195,7 @@ async def send_penambahan_kerja_status_email(
 
         body += (
             f"Detail Pengajuan:\n"
-            f"- Tanggal: {log_kerja.tanggal_mulai} s/d {log_kerja.tanggal_selesai} ({durasi} hari)\n"
+            f"- Tanggal: {tgl_str} ({durasi} hari)\n"
             f"- Keterangan: {log_kerja.keterangan_pengajuan}\n\n"
             f"Terima kasih."
         )
@@ -218,14 +224,14 @@ async def generate_surat_cuti(
     env = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)))
     template = env.get_template("surat_cuti.html")
 
-    durasi = (log_cuti.tanggal_selesai - log_cuti.tanggal_mulai).days + 1
+    durasi = len(log_cuti.tanggal_list)
+    tanggal_list = sorted([ld.tanggal for ld in log_cuti.tanggal_list])
 
     html_content = template.render(
         nama_karyawan=user_pengaju.nama,
         departemen=getattr(user_pengaju.user_departemen, "nama_departemen", "-"),
         jenis_cuti=log_cuti.jenis_cuti,
-        tanggal_mulai=log_cuti.tanggal_mulai.strftime("%d %B %Y"),
-        tanggal_selesai=log_cuti.tanggal_selesai.strftime("%d %B %Y"),
+        tanggal_list=[t.strftime("%d %B %Y") for t in tanggal_list],
         durasi=durasi,
         keterangan=log_cuti.keterangan_cuti,
         disetujui_oleh=current_user.nama,
@@ -245,6 +251,85 @@ async def generate_surat_cuti(
         body=f"Halo {user_pengaju.nama},\n\nSelamat! Pengajuan cuti Anda telah disetujui secara final.\nBerikut terlampir surat konfirmasi cuti Anda.\n\nSalam,\nTim HR Amal Solution",
         subtype="plain",
         attachments=[file_attachment],
+    )
+
+    fm = FastMail(_get_mail_config())
+    await fm.send_message(message)
+
+
+## notifikasi reset password ke karyawan
+async def send_reset_password_email(user: User) -> None:
+    if not user.email:
+        return
+
+    subject = "Reset Password - Amal Solution"
+    body = (
+        f"Halo {user.nama},\n\n"
+        f"Password Anda telah direset oleh admin.\n"
+        f"Password baru Anda: untukdevajaya\n\n"
+        f"Silakan login dan segera ubah password Anda.\n\n"
+        f"Salam,\nTim HR Amal Solution"
+    )
+
+    message = MessageSchema(
+        subject=subject,
+        recipients=[user.email],
+        body=body,
+        subtype="plain",
+    )
+
+    fm = FastMail(_get_mail_config())
+    await fm.send_message(message)
+
+
+## notifikasi link reset password ke email
+async def send_forgot_password_email(user: User, token: str) -> None:
+    if not user.email:
+        return
+
+    reset_link = f"{settings.BACKEND_URL}/auth/reset-password-page?token={token}"
+
+    subject = "Reset Password - Amal Solution"
+    body = (
+        f"Halo {user.nama},\n\n"
+        f"Anda telah meminta reset password.\n"
+        f"Klik link berikut untuk reset password Anda:\n\n"
+        f"{reset_link}\n\n"
+        f"Link ini berlaku selama 30 menit dan hanya bisa digunakan satu kali.\n"
+        f"Jika Anda tidak meminta reset password, abaikan email ini.\n\n"
+        f"Salam,\nTim HR Amal Solution"
+    )
+
+    message = MessageSchema(
+        subject=subject,
+        recipients=[user.email],
+        body=body,
+        subtype="plain",
+    )
+
+    fm = FastMail(_get_mail_config())
+    await fm.send_message(message)
+
+
+## notifikasi password berhasil diubah
+async def send_password_changed_notification(user: User, password_baru: str) -> None:
+    if not user.email:
+        return
+
+    subject = "Password Berhasil Diubah - Amal Solution"
+    body = (
+        f"Halo {user.nama},\n\n"
+        f"Password Anda telah berhasil diubah.\n"
+        f"Password baru Anda: {password_baru}\n\n"
+        f"Jika Anda tidak melakukan perubahan ini, segera hubungi tim HR.\n\n"
+        f"Salam,\nTim HR Amal Solution"
+    )
+
+    message = MessageSchema(
+        subject=subject,
+        recipients=[user.email],
+        body=body,
+        subtype="plain",
     )
 
     fm = FastMail(_get_mail_config())

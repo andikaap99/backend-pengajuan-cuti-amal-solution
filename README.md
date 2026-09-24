@@ -111,7 +111,7 @@ backend_porgram/
 | ID | 1 |
 | Username | `saver` |
 | Nama | Saverius G. R. Demon Paji Dosinaeng |
-| Role | `hr` |
+| Role | `hr_manager` |
 | Departemen | Manajemen Perusahaan (id=1) |
 | Password | `untukdevajaya` |
 | Total Cuti | 12 |

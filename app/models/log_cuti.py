@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Date, DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base
@@ -12,8 +12,6 @@ class LogCuti(Base):
     id_log_cuti = Column(Integer, primary_key=True, index=True)
     id_user = Column(Integer, ForeignKey("users.id_user"), nullable=False)
     jenis_cuti = Column(String(30), nullable=False)
-    tanggal_mulai = Column(Date, nullable=False)
-    tanggal_selesai = Column(Date, nullable=False)
     keterangan_cuti = Column(Text, nullable=False)
     pengganti = Column(Integer, ForeignKey("users.id_user"), nullable=True)
     status = Column(Enum(
@@ -35,6 +33,9 @@ class LogCuti(Base):
     user_backup = relationship("User", foreign_keys=[pengganti], back_populates="user_backup")
     hr_log = relationship("User", foreign_keys=[diproses_hr], back_populates="hr_log")
     direktur_log = relationship("User", foreign_keys=[diproses_direktur], back_populates="direktur_log")
+
+    ## relasi tanggal cuti individual
+    tanggal_list = relationship("LogCutiDate", back_populates="log_cuti", cascade="all, delete-orphan")
 
     ## relasi approval PM (many to many)
     approval_pm_list = relationship("LogCutiApprovalPM", back_populates="log_cuti", cascade="all, delete-orphan")

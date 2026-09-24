@@ -13,7 +13,7 @@ class User(Base):
     nama = Column(String(100), nullable=False)
     status = Column(Enum("Aktif", "Cuti"), default="Aktif")
     password = Column(Text, nullable=False)
-    role = Column(Enum("karyawan", "pm", "hr", "direktur", "staff_hr"), nullable=False)
+    role = Column(Enum("karyawan", "pm", "hr_manager", "direktur", "staff_hr"), nullable=False)
     id_departemen = Column(Integer, ForeignKey("departemen.id_departemen"), nullable=False)
     total_cuti = Column(Integer, default=12)
     sisa_cuti = Column(Integer, default=12)
@@ -40,3 +40,6 @@ class User(Base):
     ## relation approval PM
     approval_pm_logs = relationship("LogCutiApprovalPM", foreign_keys="LogCutiApprovalPM.id_pm", back_populates="pm")
     approval_penambahan_kerja_logs = relationship("LogPenambahanKerjaApprovalPM", foreign_keys="LogPenambahanKerjaApprovalPM.id_pm", back_populates="pm")
+
+    ## relation password reset token
+    password_reset_tokens = relationship("PasswordResetToken", back_populates="user")

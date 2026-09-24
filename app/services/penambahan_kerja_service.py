@@ -1,10 +1,11 @@
 from datetime import date, datetime
 from fastapi import BackgroundTasks, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.log_penambahan_kerja import LogPenambahanKerja
+from app.models.log_penambahan_kerja_date import LogPenambahanKerjaDate
 from app.models.log_penambahan_kerja_approval_pm import LogPenambahanKerjaApprovalPM
 from app.models.user import User
 from app.models.user_pm import UserPM
@@ -14,8 +15,20 @@ from app.services.email_service import send_pengajuan_notification, send_penamba
 from app.services.ongoing_status_role_service import get_ongoing_statuses, get_finished_statuses
 
 
+## subquery tanggal mulai (min) per pengajuan kerja, pengganti kolom range lama
+def _min_tanggal_kerja_subquery():
+    return (
+        select(
+            LogPenambahanKerjaDate.id_pengajuan_kerja,
+            func.min(LogPenambahanKerjaDate.tanggal).label("mulai"),
+        )
+        .group_by(LogPenambahanKerjaDate.id_pengajuan_kerja)
+        .subquery()
+    )
+
+
 ## pengajuan kerja (semua role kecuali direktur)
-async def create_penambahan_kerja(user_id: int, tanggal_mulai: date, tanggal_selesai: date, keterangan: str, db:AsyncSession, background_tasks: BackgroundTasks) -> LogPenambahanKerja:
+async def create_penambahan_kerja(user_id: int, tanggal: list[date], keterangan: str, db:AsyncSession, background_tasks: BackgroundTasks) -> PenambahanKerjaOut:
     result_user = await db.execute(select(User).where(User.id_user == user_id))
     user = result_user.scalar_one_or_none()
 
@@ -25,8 +38,15 @@ async def create_penambahan_kerja(user_id: int, tanggal_mulai: date, tanggal_sel
     if user.role == "direktur":
         raise HTTPException(status_code=400, detail="Direktur tidak dapat mengajukan penambahan kerja!")
 
-    if tanggal_mulai > tanggal_selesai:
-        raise HTTPException(status_code=400, detail="Tanggal mulai tidak boleh lebih dari tanggal selesai!")
+    if not tanggal:
+        raise HTTPException(status_code=400, detail="Tanggal kerja harus diisi")
+
+    for t in tanggal:
+        if t < date.today():
+            raise HTTPException(status_code=400, detail="Tanggal kerja tidak boleh di masa lalu")
+
+    if len(set(tanggal)) != len(tanggal):
+        raise HTTPException(status_code=400, detail="Tanggal kerja tidak boleh ganda")
 
     aktif_statuses = ["menunggu_pm", "menunggu_hr", "menunggu_direktur"]
     existing = await db.execute(select(LogPenambahanKerja).where(
@@ -36,27 +56,34 @@ async def create_penambahan_kerja(user_id: int, tanggal_mulai: date, tanggal_sel
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Masih ada pengajuan penambahan kerja yang sedang diproses")
 
-    overlapping = await db.execute(select(LogPenambahanKerja).where(
-        LogPenambahanKerja.id_user == user_id,
-        LogPenambahanKerja.tanggal_mulai <= tanggal_selesai,
-        LogPenambahanKerja.tanggal_selesai >= tanggal_mulai,
-        LogPenambahanKerja.status.notin_(["ditolak_pm", "ditolak_hr"])
-    ))
-
-    if overlapping.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Pengajuan tanggal tersebut sudah ada!")
+    ## cek overlapping per tanggal (seperti pengajuan cuti)
+    for t in sorted(tanggal):
+        overlapping = await db.execute(
+            select(LogPenambahanKerjaDate.id)
+            .join(LogPenambahanKerja, LogPenambahanKerja.id_pengajuan_kerja == LogPenambahanKerjaDate.id_pengajuan_kerja)
+            .where(
+                LogPenambahanKerja.id_user == user_id,
+                LogPenambahanKerjaDate.tanggal == t,
+                LogPenambahanKerja.status.notin_(["ditolak_pm", "ditolak_hr", "ditolak_direktur"]),
+            )
+        )
+        if overlapping.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail=f"Tanggal {t} sudah ada!")
 
     status_pengajuan = get_ongoing_statuses(user)[0]
+    tanggal_sorted = sorted(tanggal)
 
     log = LogPenambahanKerja(
         id_user=user_id,
-        tanggal_mulai=tanggal_mulai,
-        tanggal_selesai=tanggal_selesai,
         keterangan_pengajuan=keterangan,
         status=status_pengajuan,
     )
     db.add(log)
     await db.flush()
+
+    ## insert tanggal individual
+    for t in tanggal_sorted:
+        db.add(LogPenambahanKerjaDate(id_pengajuan_kerja=log.id_pengajuan_kerja, tanggal=t))
 
     ## buat approval PM hanya jika status menunggu_pm
     if status_pengajuan == "menunggu_pm":
@@ -84,16 +111,16 @@ async def create_penambahan_kerja(user_id: int, tanggal_mulai: date, tanggal_sel
             if pm:
                 background_tasks.add_task(
                     send_pengajuan_notification, user, pm, "penambahan kerja",
-                    tanggal_mulai, tanggal_selesai, keterangan
+                    tanggal_sorted, keterangan
                 )
     elif status_pengajuan == "menunggu_hr":
-        result_hr = await db.execute(select(User).where(User.role.in_(["hr", "staff_hr"])))
+        result_hr = await db.execute(select(User).where(User.role.in_(["hr_manager", "staff_hr"])))
         hr_users = result_hr.scalars().all()
         for hr_user in hr_users:
             if hr_user.email:
                 background_tasks.add_task(
                     send_pengajuan_notification, user, hr_user, "penambahan kerja",
-                    tanggal_mulai, tanggal_selesai, keterangan
+                    tanggal_sorted, keterangan
                 )
     elif status_pengajuan == "menunggu_direktur":
         result_dir = await db.execute(select(User).where(User.role == "direktur"))
@@ -102,17 +129,28 @@ async def create_penambahan_kerja(user_id: int, tanggal_mulai: date, tanggal_sel
             if direktur.email:
                 background_tasks.add_task(
                     send_pengajuan_notification, user, direktur, "penambahan kerja",
-                    tanggal_mulai, tanggal_selesai, keterangan
+                    tanggal_sorted, keterangan
                 )
 
-    return log
+    return PenambahanKerjaOut(
+        id_pengajuan_kerja=log.id_pengajuan_kerja,
+        id_user=log.id_user,
+        tanggal=tanggal_sorted,
+        keterangan_pengajuan=log.keterangan_pengajuan,
+        status=log.status,
+        tanggal_pengajuan=log.tanggal_pengajuan,
+        approval_pm_detail=[],
+    )
 
 
 ## get riwayat penambahan kerja (yang terbaru saja)
 async def get_my_penambahan_kerja(user_id: int, db: AsyncSession, user: User = None):
     result = await db.execute(
         select(LogPenambahanKerja)
-        .options(selectinload(LogPenambahanKerja.approval_pm_list).selectinload(LogPenambahanKerjaApprovalPM.pm))
+        .options(
+            selectinload(LogPenambahanKerja.tanggal_list),
+            selectinload(LogPenambahanKerja.approval_pm_list).selectinload(LogPenambahanKerjaApprovalPM.pm),
+        )
         .where(
             LogPenambahanKerja.id_user == user_id,
         )
@@ -136,13 +174,31 @@ async def get_my_penambahan_kerja(user_id: int, db: AsyncSession, user: User = N
     return [PenambahanKerjaOut(
         id_pengajuan_kerja=latest.id_pengajuan_kerja,
         id_user=latest.id_user,
-        tanggal_mulai=latest.tanggal_mulai,
-        tanggal_selesai=latest.tanggal_selesai,
+        tanggal=sorted([ld.tanggal for ld in latest.tanggal_list]),
         keterangan_pengajuan=latest.keterangan_pengajuan,
         status=latest.status,
         tanggal_pengajuan=latest.tanggal_pengajuan,
         approval_pm_detail=approval_pm_detail,
     )]
+
+
+def _queue_out(log: LogPenambahanKerja) -> PenambahanKerjaQueueOut:
+    return PenambahanKerjaQueueOut(
+        id_pengajuan_kerja=log.id_pengajuan_kerja,
+        nama=log.user_log.nama,
+        nama_departemen=log.user_log.user_departemen.nama_departemen,
+        tanggal=sorted([ld.tanggal for ld in log.tanggal_list]),
+        keterangan=log.keterangan_pengajuan,
+        tanggal_pengajuan=log.tanggal_pengajuan,
+        status=log.status,
+        approval_pm_detail=[
+            PenambahanKerjaApprovalPMDetail(
+                nama_pm=apm.pm.nama,
+                status=apm.status,
+                processed_at=apm.processed_at,
+            ) for apm in log.approval_pm_list if apm.pm
+        ],
+    )
 
 
 ## queue penambahan kerja untuk pm
@@ -153,12 +209,16 @@ async def get_penambahan_kerja_queue(pm_id: int, db: AsyncSession) -> list[Penam
     if not team_ids:
         return []
 
+    min_tgl = _min_tanggal_kerja_subquery()
+
     ## ambil pengajuan yang menunggu pm ini approve
     result = await db.execute(
         select(LogPenambahanKerja)
         .join(LogPenambahanKerjaApprovalPM, LogPenambahanKerja.id_pengajuan_kerja == LogPenambahanKerjaApprovalPM.id_pengajuan_kerja)
+        .join(min_tgl, min_tgl.c.id_pengajuan_kerja == LogPenambahanKerja.id_pengajuan_kerja)
         .options(
             selectinload(LogPenambahanKerja.user_log).selectinload(User.user_departemen),
+            selectinload(LogPenambahanKerja.tanggal_list),
             selectinload(LogPenambahanKerja.approval_pm_list).selectinload(LogPenambahanKerjaApprovalPM.pm)
         )
         .where(
@@ -166,108 +226,75 @@ async def get_penambahan_kerja_queue(pm_id: int, db: AsyncSession) -> list[Penam
             LogPenambahanKerjaApprovalPM.status == "menunggu",
             LogPenambahanKerja.status == "menunggu_pm"
         )
-        .order_by(LogPenambahanKerja.tanggal_mulai.asc())
+        .order_by(min_tgl.c.mulai.asc())
     )
     logs = result.scalars().unique().all()
 
-    return [
-        PenambahanKerjaQueueOut(
-            id_pengajuan_kerja=log.id_pengajuan_kerja,
-            nama=log.user_log.nama,
-            nama_departemen=log.user_log.user_departemen.nama_departemen,
-            tanggal_mulai=log.tanggal_mulai,
-            tanggal_selesai=log.tanggal_selesai,
-            keterangan=log.keterangan_pengajuan,
-            tanggal_pengajuan=log.tanggal_pengajuan,
-            status=log.status,
-            approval_pm_detail=[
-                PenambahanKerjaApprovalPMDetail(
-                    nama_pm=apm.pm.nama,
-                    status=apm.status,
-                    processed_at=apm.processed_at,
-                ) for apm in log.approval_pm_list
-            ],
-        ) for log in logs
-    ]
+    return [_queue_out(log) for log in logs]
 
 
-## queue penambahan kerja untuk hr
-async def get_penambahan_kerja_queue_hr(db: AsyncSession) -> list[PenambahanKerjaQueueOut]:
+## queue penambahan kerja untuk hr (kecuali pengajuan sendiri, seperti cuti)
+async def get_penambahan_kerja_queue_hr(db: AsyncSession, current_user_id: int) -> list[PenambahanKerjaQueueOut]:
+    min_tgl = _min_tanggal_kerja_subquery()
+
     result = await db.execute(
         select(LogPenambahanKerja)
+        .join(min_tgl, min_tgl.c.id_pengajuan_kerja == LogPenambahanKerja.id_pengajuan_kerja)
         .options(
             selectinload(LogPenambahanKerja.user_log).selectinload(User.user_departemen),
+            selectinload(LogPenambahanKerja.tanggal_list),
             selectinload(LogPenambahanKerja.approval_pm_list).selectinload(LogPenambahanKerjaApprovalPM.pm)
         )
-        .where(LogPenambahanKerja.status == "menunggu_hr")
-        .order_by(LogPenambahanKerja.tanggal_mulai.asc())
+        .where(
+            LogPenambahanKerja.status == "menunggu_hr",
+            LogPenambahanKerja.id_user != current_user_id,
+        )
+        .order_by(min_tgl.c.mulai.asc())
     )
     logs = result.scalars().unique().all()
 
-    return [
-        PenambahanKerjaQueueOut(
-            id_pengajuan_kerja=log.id_pengajuan_kerja,
-            nama=log.user_log.nama,
-            nama_departemen=log.user_log.user_departemen.nama_departemen,
-            tanggal_mulai=log.tanggal_mulai,
-            tanggal_selesai=log.tanggal_selesai,
-            keterangan=log.keterangan_pengajuan,
-            tanggal_pengajuan=log.tanggal_pengajuan,
-            status=log.status,
-            approval_pm_detail=[
-                PenambahanKerjaApprovalPMDetail(
-                    nama_pm=apm.pm.nama,
-                    status=apm.status,
-                    processed_at=apm.processed_at,
-                ) for apm in log.approval_pm_list
-            ],
-        ) for log in logs
-    ]
+    return [_queue_out(log) for log in logs]
 
 
-## queue penambahan kerja untuk direktur
-async def get_penambahan_kerja_queue_direktur(db: AsyncSession) -> list[PenambahanKerjaQueueOut]:
+## queue penambahan kerja untuk direktur (kecuali pengajuan sendiri, seperti cuti)
+async def get_penambahan_kerja_queue_direktur(db: AsyncSession, current_user_id: int) -> list[PenambahanKerjaQueueOut]:
+    min_tgl = _min_tanggal_kerja_subquery()
+
     result = await db.execute(
         select(LogPenambahanKerja)
+        .join(min_tgl, min_tgl.c.id_pengajuan_kerja == LogPenambahanKerja.id_pengajuan_kerja)
         .options(
             selectinload(LogPenambahanKerja.user_log).selectinload(User.user_departemen),
+            selectinload(LogPenambahanKerja.tanggal_list),
             selectinload(LogPenambahanKerja.approval_pm_list).selectinload(LogPenambahanKerjaApprovalPM.pm)
         )
-        .where(LogPenambahanKerja.status == "menunggu_direktur")
-        .order_by(LogPenambahanKerja.tanggal_mulai.asc())
+        .where(
+            LogPenambahanKerja.status == "menunggu_direktur",
+            LogPenambahanKerja.id_user != current_user_id,
+        )
+        .order_by(min_tgl.c.mulai.asc())
     )
     logs = result.scalars().unique().all()
 
-    return [
-        PenambahanKerjaQueueOut(
-            id_pengajuan_kerja=log.id_pengajuan_kerja,
-            nama=log.user_log.nama,
-            nama_departemen=log.user_log.user_departemen.nama_departemen,
-            tanggal_mulai=log.tanggal_mulai,
-            tanggal_selesai=log.tanggal_selesai,
-            keterangan=log.keterangan_pengajuan,
-            tanggal_pengajuan=log.tanggal_pengajuan,
-            status=log.status,
-            approval_pm_detail=[
-                PenambahanKerjaApprovalPMDetail(
-                    nama_pm=apm.pm.nama,
-                    status=apm.status,
-                    processed_at=apm.processed_at,
-                ) for apm in log.approval_pm_list
-            ],
-        ) for log in logs
-    ]
+    return [_queue_out(log) for log in logs]
 
 
 ## approvement penambahan kerja oleh pm
 async def process_penambahan_kerja(
  log_id: int, pm_id: int, action: str, alasan: str | None, db: AsyncSession, background_tasks: BackgroundTasks       
 ) -> PenambahanKerjaApprovalResponse:
-    result = await db.execute(select(LogPenambahanKerja).where(LogPenambahanKerja.id_pengajuan_kerja == log_id))
+    result = await db.execute(
+        select(LogPenambahanKerja)
+        .options(selectinload(LogPenambahanKerja.tanggal_list))
+        .where(LogPenambahanKerja.id_pengajuan_kerja == log_id)
+    )
     log = result.scalar_one_or_none()
 
     if not log:
         raise HTTPException(status_code=404, detail="Pengajuan tidak ditemukan!")
+
+    if log.id_user == pm_id:
+        raise HTTPException(status_code=400, detail="Tidak bisa memproses pengajuan sendiri")
 
     if log.status != "menunggu_pm":
         raise HTTPException(status_code=400, detail="Pengajuan sudah diproses")
@@ -319,6 +346,8 @@ async def process_penambahan_kerja(
 
     if rejected_count > 0:
         log.status = "ditolak_pm"
+        if action == "decline":
+            log.alasan_penolakan = alasan
     elif approved_count == total_pm:
         log.status = "menunggu_hr"
 
@@ -338,16 +367,20 @@ async def process_penambahan_kerja(
             send_penambahan_kerja_status_email, log, user_pengaju, pm_user, "menunggu_hr"
         )
         ## kirim email ke hr bahwa ada pengajuan menunggu
-        result_hr = await db.execute(select(User).where(User.role.in_(["hr", "staff_hr"])))
+        result_hr = await db.execute(select(User).where(User.role.in_(["hr_manager", "staff_hr"])))
         hr_users = result_hr.scalars().all()
         for hr_user in hr_users:
             if hr_user.email:
                 background_tasks.add_task(
                     send_pengajuan_notification, user_pengaju, hr_user, "penambahan kerja",
-                    log.tanggal_mulai, log.tanggal_selesai, log.keterangan_pengajuan,
+                    sorted([ld.tanggal for ld in log.tanggal_list]), log.keterangan_pengajuan,
                 )
     elif log.status == "ditolak_pm":
-        log_with_alasan = await db.execute(select(LogPenambahanKerja).where(LogPenambahanKerja.id_pengajuan_kerja == log_id))
+        log_with_alasan = await db.execute(
+            select(LogPenambahanKerja)
+            .options(selectinload(LogPenambahanKerja.tanggal_list))
+            .where(LogPenambahanKerja.id_pengajuan_kerja == log_id)
+        )
         log_detail = log_with_alasan.scalar_one()
         background_tasks.add_task(
             send_penambahan_kerja_status_email, log_detail, user_pengaju, pm_user, "ditolak_pm"
@@ -364,50 +397,46 @@ async def process_penambahan_kerja(
 
 
 ## approvement penambahan kerja oleh hr
+## (flow sama cuti: staff_hr selesai di HR, tanpa eskalasi ke direktur)
 async def process_penambahan_kerja_hr(
     log_id: int, current_user: User, action: str, alasan: str | None, db: AsyncSession, background_tasks: BackgroundTasks
 ) -> PenambahanKerjaApprovalResponse:
-    result = await db.execute(select(LogPenambahanKerja).where(LogPenambahanKerja.id_pengajuan_kerja == log_id))
+    result = await db.execute(
+        select(LogPenambahanKerja)
+        .options(selectinload(LogPenambahanKerja.tanggal_list))
+        .where(LogPenambahanKerja.id_pengajuan_kerja == log_id)
+    )
     log = result.scalar_one_or_none()
 
     if not log:
         raise HTTPException(status_code=404, detail="Pengajuan tidak ditemukan!")
+
+    if log.id_user == current_user.id_user:
+        raise HTTPException(status_code=400, detail="Tidak bisa memproses pengajuan sendiri")
 
     if log.status != "menunggu_hr":
         raise HTTPException(status_code=400, detail="Pengajuan tidak dalam status menunggu_hr")
 
     result_owner = await db.execute(select(User).where(User.id_user == log.id_user))
     owner = result_owner.scalar_one_or_none()
-    is_hr_submitter = owner and owner.role in ["hr", "staff_hr"]
 
     from datetime import datetime as datetime_type
     from zoneinfo import ZoneInfo
     WIB = ZoneInfo("Asia/Jakarta")
 
     if action == "acc":
-        if is_hr_submitter:
-            log.status = "menunggu_direktur"
-            detail_msg = "Disetujui, menunggu persetujuan Direktur!"
-            ## email notif ke direktur
-            result_dir = await db.execute(select(User).where(User.role == "direktur"))
-            for direktur in result_dir.scalars().all():
-                if direktur.email:
-                    background_tasks.add_task(
-                        send_pengajuan_notification, owner, direktur, "penambahan kerja",
-                        log.tanggal_mulai, log.tanggal_selesai, log.keterangan_pengajuan
-                    )
-        else:
-            log.status = "disetujui_hr"
-            log.tanggal_verifikasi_hr = datetime_type.now(WIB)
-            log.diproses_hr = current_user.id_user
-            log.keterangan_disetujui_hr = alasan or "Disetujui"
-            detail_msg = "Pengajuan berhasil disetujui!"
+        log.status = "disetujui_hr"
+        log.processed_at_hr = datetime_type.now(WIB)
+        log.diproses_hr = current_user.id_user
+        log.keterangan_disetujui_hr = alasan or "Disetujui"
+        detail_msg = "Pengajuan berhasil disetujui!"
     elif action == "decline":
         if not alasan:
             raise HTTPException(status_code=400, detail="Alasan harus diisi!")
         log.status = "ditolak_hr"
-        log.tanggal_verifikasi_hr = datetime_type.now(WIB)
+        log.processed_at_hr = datetime_type.now(WIB)
         log.diproses_hr = current_user.id_user
+        log.alasan_penolakan = alasan
         log.keterangan_disetujui_hr = alasan
         detail_msg = "Pengajuan berhasil ditolak!"
 
@@ -434,11 +463,18 @@ async def process_penambahan_kerja_direktur(
     if current_user.role != "direktur":
         raise HTTPException(status_code=403, detail="Hanya Direktur yang dapat approve!")
 
-    result = await db.execute(select(LogPenambahanKerja).where(LogPenambahanKerja.id_pengajuan_kerja == log_id))
+    result = await db.execute(
+        select(LogPenambahanKerja)
+        .options(selectinload(LogPenambahanKerja.tanggal_list))
+        .where(LogPenambahanKerja.id_pengajuan_kerja == log_id)
+    )
     log = result.scalar_one_or_none()
 
     if not log:
         raise HTTPException(status_code=404, detail="Pengajuan tidak ditemukan!")
+
+    if log.id_user == current_user.id_user:
+        raise HTTPException(status_code=400, detail="Tidak bisa memproses pengajuan sendiri")
 
     if log.status != "menunggu_direktur":
         raise HTTPException(status_code=400, detail="Pengajuan tidak dalam status menunggu_direktur")
@@ -448,17 +484,18 @@ async def process_penambahan_kerja_direktur(
     WIB = ZoneInfo("Asia/Jakarta")
 
     if action == "acc":
-        log.status = "disetujui_hr"
-        log.tanggal_verifikasi_hr = datetime_type.now(WIB)
-        log.diproses_hr = current_user.id_user
+        log.status = "disetujui_direktur"
+        log.processed_at_direktur = datetime_type.now(WIB)
+        log.diproses_direktur = current_user.id_user
         log.keterangan_disetujui_hr = alasan or "Disetujui Direktur"
         detail_msg = "Pengajuan berhasil disetujui Direktur!"
     elif action == "decline":
         if not alasan:
             raise HTTPException(status_code=400, detail="Alasan harus diisi!")
-        log.status = "ditolak_hr"
-        log.tanggal_verifikasi_hr = datetime_type.now(WIB)
-        log.diproses_hr = current_user.id_user
+        log.status = "ditolak_direktur"
+        log.processed_at_direktur = datetime_type.now(WIB)
+        log.diproses_direktur = current_user.id_user
+        log.alasan_penolakan = alasan
         log.keterangan_disetujui_hr = alasan
         detail_msg = "Pengajuan ditolak Direktur!"
 
@@ -478,4 +515,3 @@ async def process_penambahan_kerja_direktur(
         detail=detail_msg,
         status_baru=log.status
     )
-

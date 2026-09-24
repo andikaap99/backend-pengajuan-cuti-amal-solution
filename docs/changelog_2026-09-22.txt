@@ -1,0 +1,94 @@
+Changelog - 22 September 2026
+============================
+
+1. Fitur Forgot Password (Reset Password via Email)
+----------------------------------------------------------
+- Tambah tabel baru `password_reset_tokens` untuk menyimpan token reset password
+- Token di-generate menggunakan `secrets.token_urlsafe(32)`, berlaku 30 menit, bisa dipakai 1 kali
+- Dua endpoint baru:
+  - `POST /auth/forgot-password` - Kirim link reset password ke email (anti enumerasi: response sama untuk email ada/tidak ada)
+  - `POST /auth/reset-password` - Validasi token dan update password baru
+- Halaman reset password HTML di `GET /auth/reset-password-page` dengan desain clean modern (logo AjuanCuti, Inter font, warna navy)
+- Email notifikasi: link reset password + konfirmasi password berhasil diubah
+
+File baru:
+- app/models/password_reset_token.py - Model SQLAlchemy `PasswordResetToken`
+- templates/reset_password.html - Halaman reset password (Jinja2 + JavaScript)
+
+File yang diubah:
+- app/models/__init__.py - Register `PasswordResetToken`
+- app/models/user.py - Tambah relationship `password_reset_tokens`
+- app/core/config.py - Tambah `BACKEND_URL` dan `FRONTEND_URL`
+- app/schemas/user.py - Tambah `ForgotPasswordRequest`, `ResetPasswordRequest`, response models
+- app/services/email_service.py - Tambah `send_forgot_password_email()` dan `send_password_changed_notification()`
+- app/routers/auth.py - Tambah 2 endpoint forgot-password dan reset-password + halaman HTML
+- .env - Tambah `BACKEND_URL` dan `FRONTEND_URL`
+- .env.example - Tambah `BACKEND_URL` dan `FRONTEND_URL`
+- alembic/versions/a1b2c3d4e5f7_tambah_tabel_password_reset_tokens.py - Migration
+
+
+2. Edit Karyawan: Tambah Field Password
+----------------------------------------------------------
+- Tambah field `password` di `EditKaryawanRequest` agar HR/Direktur bisa reset password saat edit karyawan
+- Password otomatis di-hash sebelum disimpan
+
+File yang diubah:
+- app/schemas/hr.py - Tambah `password: Optional[str]` di `EditKaryawanRequest`
+- app/services/hr_service.py - Hash password jika diisi saat edit karyawan
+
+
+3. Hapus Karyawan: Fix Cascade Delete
+----------------------------------------------------------
+- Fix error `IntegrityError: Column 'id_pengajuan_kerja' cannot be null` saat hapus karyawan
+- Penyebab: `log_penambahan_kerja` dihapus sebelum `log_penambahan_kerja_approval_pm`, trigger autoflush error
+- Tambah `cascade="all, delete-orphan"` di relationship `LogPenambahanKerja.approval_pm_list`
+
+File yang diubah:
+- app/models/log_penambahan_kerja.py - Tambah `cascade="all, delete-orphan"`
+
+
+4. Tabel Karyawan: Tambah Username dan Password
+----------------------------------------------------------
+- Tambah field `username` dan `password` di `HRTabelKaryawanOut` agar HR bisa melihat credentials karyawan
+
+File yang diubah:
+- app/schemas/hr.py - Tambah `username: str` dan `password: str` di `HRTabelKaryawanOut`
+- app/services/hr_service.py - Map `user.username` dan `user.password` di `get_tabel_karyawan()`
+
+
+5. Fix Schema Penambahan Kerja: Tambah Status "menunggu_direktur"
+----------------------------------------------------------
+- Fix error `ResponseValidationError: Input should be 'menunggu_pm', 'disetujui_pm', ...` saat submit penambahan kerja
+- Schema `PenambahanKerjaOut` belum include `"menunggu_direktur"` di Literal status
+
+File yang diubah:
+- app/schemas/penambahan_kerja.py - Tambah `"menunggu_direktur"` ke Literal status `PenambahanKerjaOut`
+
+
+6. Sistem Cuti: Individual Dates (Bukan Range)
+----------------------------------------------------------
+- Ganti sistem cuti dari range tanggal (`tanggal_mulai`-`tanggal_selesai`) menjadi list tanggal individual
+- Misal cuti tanggal 12 dan 14 = 2 hari (bukan 3 hari seperti sebelumnya)
+- Tabel baru `log_cuti_dates` menyimpan setiap tanggal cuti sebagai record terpisah
+- Durasi dihitung dari `len(tanggal_list)` bukan `(end - start).days + 1`
+- Validasi overlap sekarang cek per tanggal individual, bukan range
+- "Sedang cuti" check juga pakai individual dates
+- Input dari FE: `{ "tanggal": ["2026-09-12", "2026-09-14"], ... }`
+
+File baru:
+- app/models/log_cuti_date.py - Model `LogCutiDate`
+- alembic/versions/b2c3d4e5f6a7_tambah_tabel_log_cuti_dates.py - Migration (create table + migrate data existing, skip weekend)
+
+File yang diubah:
+- app/models/log_cuti.py - Tambah relationship `tanggal_list`
+- app/models/__init__.py - Register `LogCutiDate`
+- app/schemas/log_cuti.py - Ganti `tanggal_mulai`/`tanggal_selesai` input jadi `tanggal: list[date]`, tambah `tanggal` dan `durasi` di output schemas
+- app/services/cuti_service.py - Rewrite: `hitung_cuti_terpakai()` pakai COUNT, `create_pengajuan_cuti()` insert individual dates, `edit_pengajuan_cuti()` update dates, return `PengajuanCutiOut` schema
+- app/services/approval_service.py - Load `tanggal_list`, durasi = `len()`, "sedang cuti" check pakai individual dates
+- app/services/hr_service.py - Load `tanggal_list`, durasi = `len()`
+- app/services/pm_service.py - Load `tanggal_list`, durasi = `len()`, "sedang cuti" check pakai individual dates
+- app/services/email_service.py - Durasi pakai `len(tanggal_list)`, PDF tampilkan list tanggal
+- app/services/kalender_service.py - Iterasi `tanggal_list` bukan range
+- app/services/export_excel_service.py - Format dates pakai `tanggal_list`
+- app/services/penambahan_kerja_service.py - Return `PenambahanKerjaOut` schema
+- templates/surat_cuti.html - Tampilkan list tanggal dengan join comma

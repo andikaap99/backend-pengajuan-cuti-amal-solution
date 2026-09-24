@@ -15,11 +15,29 @@ async def konsumsi_cuti(user: User, durasi: int, db: AsyncSession) -> None:
 
 
 async def tambah_sisa_cuti_semua(jumlah_hari: int, keterangan: str, id_penambah: int, db: AsyncSession) -> list[LogCutiEkstra]:
-    result_users = await db.execute(select(User).where(User.role.in_(["karyawan", "pm", "hr", "staff_hr"])))
+    result_users = await db.execute(select(User).where(User.role.in_(["karyawan", "pm", "hr_manager", "staff_hr"])))
     users = result_users.scalars().all()
 
     if not users:
         raise HTTPException(status_code=404, detail="Tidak ada user ditemukan")
+
+    if jumlah_hari == 0:
+        raise HTTPException(status_code=400, detail="Jumlah hari tidak boleh 0")
+
+    if jumlah_hari < 0:
+        user_dasar = next((u for u in users if u.total_cuti + jumlah_hari < 12), None)
+        if user_dasar is not None:
+            raise HTTPException(
+                status_code=400,
+                detail="Tidak bisa mengurangi: total cuti akan kurang dari jatah dasar negara (12 hari)",
+            )
+
+        user_minus = next((u for u in users if u.sisa_cuti + jumlah_hari < 0), None)
+        if user_minus is not None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Sisa cuti tidak mencukupi untuk user {user_minus.nama}",
+            )
 
     today = date.today()
     tahun = today.year

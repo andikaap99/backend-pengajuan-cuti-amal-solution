@@ -6,15 +6,16 @@ from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import require_role
+from app.core.security import require_role, hash_password
 from app.db import get_db
 from app.models.user import User
 from app.schemas.user import ExecutiveOut
 from app.schemas.pengajuan import PersetujuanQueueCutiOut
-from app.schemas.hr import HRDashboardRingkasanOut, HRDashboardPersetujuanOut, HRListCutiKaryawanMendatangOut, HRRekapitulasiOut, HRLogCutiOut, HRRingkasanKaryawanOut, HRTabelKaryawanOut, HRTabelDepartemenOut, HRManajemenJatahCutiRingkasanOut, HRDaftarCutiKaryawanOut, EditKaryawanRequest, EditKaryawanResponse, HRLogPenambahanKerjaOut, HRRekapitulasiPenambahanKerjaOut
-from app.services.hr_service import get_dashboard_ringkasan_hr, get_persetujuan, get_list_cuti_karyawan_mendatang, get_rekapitulasi_cuti, get_cuti_log, get_ringkasan_karyawan, get_tabel_karyawan, get_tabel_departemen, get_manajemen_jatah_cuti, get_daftar_cuti_karyawan, edit_karyawan, get_log_penambahan_kerja, get_rekapitulasi_penambahan_kerja
+from app.schemas.hr import HRDashboardRingkasanOut, HRDashboardPersetujuanOut, HRListCutiKaryawanMendatangOut, HRRekapitulasiOut, HRLogCutiOut, HRRingkasanKaryawanOut, HRTabelKaryawanOut, HRTabelDepartemenOut, HRManajemenJatahCutiRingkasanOut, HRDaftarCutiKaryawanOut, EditKaryawanRequest, EditKaryawanResponse, HRLogPenambahanKerjaOut, HRRekapitulasiPenambahanKerjaOut, ResetPasswordResponse, DeleteKaryawanResponse
+from app.services.hr_service import get_dashboard_ringkasan_hr, get_persetujuan, get_list_cuti_karyawan_mendatang, get_rekapitulasi_cuti, get_cuti_log, get_ringkasan_karyawan, get_tabel_karyawan, get_tabel_departemen, get_manajemen_jatah_cuti, get_daftar_cuti_karyawan, edit_karyawan, get_log_penambahan_kerja, get_rekapitulasi_penambahan_kerja, delete_karyawan
 from app.services.export_excel_service import export_cuti_excel
 from app.services.tambah_cuti_service import tambah_sisa_cuti_semua
+from app.services.email_service import send_reset_password_email
 from app.schemas.log_cuti_ekstra import LogCutiEkstraCreate, LogCutiEkstraOut
 
 router = APIRouter(prefix="/hr", tags=["Human Resources"])
@@ -24,7 +25,7 @@ router = APIRouter(prefix="/hr", tags=["Human Resources"])
 async def get_all_hr(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    result = await db.execute(select(User).where(User.role == "hr"))
+    result = await db.execute(select(User).where(User.role == "hr_manager"))
     
     return result.scalars().all()
 
@@ -33,7 +34,7 @@ async def get_all_hr(
 ## ringkasan
 @router.get("/dashboard", response_model=HRDashboardRingkasanOut)
 async def get_dashboard_hr(
-    current_user: Annotated[User, Depends(require_role("hr", "direktur", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("hr_manager", "direktur", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
 
@@ -42,7 +43,7 @@ async def get_dashboard_hr(
 ## list cuti karyawan mendatang
 @router.get("/list-cuti-mendatang", response_model=list[HRListCutiKaryawanMendatangOut])
 async def get_list_cuti_mendatang(
-    current_user: Annotated[User, Depends(require_role("hr", "direktur", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("hr_manager", "direktur", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
 
@@ -53,7 +54,7 @@ async def get_list_cuti_mendatang(
 ## ringkasan persetujuan
 @router.get("/persetujuan", response_model=HRDashboardPersetujuanOut)
 async def get_dashboard_persetujuan(
-    current_user: Annotated[User, Depends(require_role("hr", "direktur", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("hr_manager", "direktur", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
 
@@ -64,7 +65,7 @@ async def get_dashboard_persetujuan(
 ## rekapitulasi
 @router.get("/rekapitulasi", response_model=list[HRRekapitulasiOut])
 async def get_rakapitulasi(
-    current_user: Annotated[User, Depends(require_role("hr", "direktur", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("hr_manager", "direktur", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
 
@@ -73,7 +74,7 @@ async def get_rakapitulasi(
 ## log cuti
 @router.get("/log-cuti", response_model=list[HRLogCutiOut])
 async def get_log_cuti(
-    current_user: Annotated[User, Depends(require_role("hr", "direktur", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("hr_manager", "direktur", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
 
@@ -84,7 +85,7 @@ async def get_log_cuti(
 # ## ringkasan
 @router.get("/ringkasan-karyawan", response_model=HRRingkasanKaryawanOut)
 async def get_ringkasan_data_karyawan(
-    current_user: Annotated[User, Depends(require_role("hr", "direktur", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("hr_manager", "direktur", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
 
@@ -93,7 +94,7 @@ async def get_ringkasan_data_karyawan(
 ## tabel karyawan
 @router.get("/tabel-karyawan", response_model=list[HRTabelKaryawanOut])
 async def get_data_tabel_karyawan(
-    current_user: Annotated[User, Depends(require_role("hr", "direktur", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("hr_manager", "direktur", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
 
@@ -102,7 +103,7 @@ async def get_data_tabel_karyawan(
 ## tabel departemen
 @router.get("/tabel-departemen", response_model=list[HRTabelDepartemenOut])
 async def get_data_tabel_departemen(
-    current_user: Annotated[User, Depends(require_role("hr", "direktur", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("hr_manager", "direktur", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
 
@@ -113,7 +114,7 @@ async def get_data_tabel_departemen(
 ## ringkasan
 @router.get("/manajemen-jatah-cuti", response_model=HRManajemenJatahCutiRingkasanOut)
 async def get_data_manajemen_jatah_cuti(
-    current_user: Annotated[User, Depends(require_role("hr", "direktur", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("hr_manager", "direktur", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
 
@@ -122,7 +123,7 @@ async def get_data_manajemen_jatah_cuti(
 ## daftar cuti karyawan
 @router.get("/daftar-cuti-karyawan", response_model=list[HRDaftarCutiKaryawanOut])
 async def get_data_cuti_karyawan(
-    current_user: Annotated[User, Depends(require_role("hr", "direktur", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("hr_manager", "direktur", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
 
@@ -132,7 +133,7 @@ async def get_data_cuti_karyawan(
 ## export excel cuti
 @router.get("/export-cuti")
 async def export_cuti(
-    current_user: Annotated[User, Depends(require_role("hr", "direktur", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("hr_manager", "direktur", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)],
     year: Optional[int] = Query(default=None, description="Tahun periode cuti"),
 ):
@@ -148,21 +149,21 @@ async def export_cuti(
     )
 
 
-## tambah sisa cuti untuk semua user
+## tambah/kurangi sisa cuti untuk semua user
 @router.post("/tambah-cuti", response_model=list[LogCutiEkstraOut])
 async def tambah_cuti(
     data: LogCutiEkstraCreate,
-    current_user: Annotated[User, Depends(require_role("hr", "direktur", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("hr_manager", "direktur", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    return await tambah_sisa_cuti_semua(1, data.keterangan, current_user.id_user, db)
+    return await tambah_sisa_cuti_semua(data.jumlah_hari, data.keterangan, current_user.id_user, db)
 
 
 ## edit karyawan
 @router.put("/karyawan/{user_id}", response_model=EditKaryawanResponse)
 async def update_karyawan(
     user_id: int, data: EditKaryawanRequest,
-    current_user: Annotated[User, Depends(require_role("hr", "direktur", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("hr_manager", "direktur", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)],
     background_tasks: BackgroundTasks,
 ):
@@ -175,7 +176,7 @@ async def update_karyawan(
 ## log pengajuan kerja
 @router.get("/log-pengajuan-kerja", response_model=list[HRLogPenambahanKerjaOut])
 async def get_log_penambahan_kerja_endpoint(
-    current_user: Annotated[User, Depends(require_role("hr", "direktur", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("hr_manager", "direktur", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     
@@ -185,9 +186,44 @@ async def get_log_penambahan_kerja_endpoint(
 ## rekapitulasi pengajuan kerja
 @router.get("/rekapitulasi-pengajuan-kerja", response_model=list[HRRekapitulasiPenambahanKerjaOut])
 async def get_rekapitulasi_penambahan_kerja_endpoint(
-    current_user: Annotated[User, Depends(require_role("hr", "direktur", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("hr_manager", "direktur", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     
     return await get_rekapitulasi_penambahan_kerja(db)
+
+
+## reset password karyawan
+@router.put("/karyawan/{user_id}/reset-password", response_model=ResetPasswordResponse)
+async def reset_password_karyawan(
+    user_id: int,
+    current_user: Annotated[User, Depends(require_role("hr_manager", "staff_hr", "direktur"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    background_tasks: BackgroundTasks,
+):
+    result = await db.execute(select(User).where(User.id_user == user_id))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User tidak ditemukan!")
+
+    user.password = hash_password("untukdevajaya")
+    db.add(user)
+    await db.commit()
+
+    background_tasks.add_task(send_reset_password_email, user)
+
+    return ResetPasswordResponse(detail="Password berhasil direset")
+
+
+## delete karyawan
+@router.delete("/karyawan/{user_id}", response_model=DeleteKaryawanResponse)
+async def hapus_karyawan(
+    user_id: int,
+    current_user: Annotated[User, Depends(require_role("hr_manager", "staff_hr", "direktur"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    message = await delete_karyawan(user_id, current_user, db)
+
+    return DeleteKaryawanResponse(detail=message)
 

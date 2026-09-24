@@ -5,8 +5,7 @@ from pydantic import BaseModel
 
 
 class PengajuanCutiBase(BaseModel):
-    tanggal_mulai: date
-    tanggal_selesai: date
+    tanggal: list[date]
     pengganti: Optional[int] = None
     keterangan_cuti: str
 
@@ -23,10 +22,13 @@ class ApprovalPMDetail(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class PengajuanCutiOut(PengajuanCutiBase):
+class PengajuanCutiOut(BaseModel):
     id_log_cuti: int
     id_user: int
     jenis_cuti: str
+    tanggal: list[date] = []
+    keterangan_cuti: str
+    durasi: int
     status: Literal[
             "menunggu_pm", "disetujui_pm", "ditolak_pm",
             "menunggu_hr", "disetujui_hr", "ditolak_hr",
@@ -47,8 +49,7 @@ class PengajuanCutiOut(PengajuanCutiBase):
 
 class RiwayatCutiOut(BaseModel):
     jenis_cuti: str
-    tanggal_mulai: date
-    tanggal_selesai: date
+    tanggal: list[date] = []
     keterangan_cuti: str
     nama_pengganti: str
     durasi: int
@@ -70,8 +71,7 @@ class EmpDashboardPengajuanOngoingOut(BaseModel):
     jenis_cuti: str
     durasi: int
     keterangan_cuti: str
-    tanggal_mulai: date
-    tanggal_selesai: date
+    tanggal: list[date] = []
     tanggal_pengajuan: Optional[datetime] = None
     status_sekarang: Literal[
         "menunggu_pm", "disetujui_pm", "ditolak_pm",
@@ -95,8 +95,6 @@ class EmpDashboardRingkasanOut(BaseModel):
 
 
 class PengajuanCutiUpdate(BaseModel):
-    tanggal_mulai: Optional[date] = None
-    tanggal_selesai: Optional[date] = None
+    tanggal: Optional[list[date]] = None
     pengganti: Optional[int] = None
     keterangan_cuti: Optional[str] = None
-

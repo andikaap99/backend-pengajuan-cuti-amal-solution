@@ -4,11 +4,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.log_cuti import LogCuti
+from app.models.log_cuti_date import LogCutiDate
 from app.models.log_penambahan_kerja import LogPenambahanKerja
+from app.models.log_penambahan_kerja_date import LogPenambahanKerjaDate
 from app.models.user import User
 from app.models.user_pm import UserPM
 from app.schemas.pm import PMDashboardRingkasanOut, PMDashboardTimOut, PMPersetujuanRingkasanTimOut, PMHistoryPersetujuanOut, PMRekapCutiRingkasanOut, PMRekapCutiDetailJatah, PMRekapPenambahanKerjaDetail, TanggalKerjaItem
 from app.services.cuti_service import hitung_cuti_terpakai
+
+
+## subquery tanggal mulai (min) per log cuti
+def _min_tanggal_cuti_subquery():
+    return (
+        select(LogCutiDate.id_log_cuti, func.min(LogCutiDate.tanggal).label("mulai"))
+        .group_by(LogCutiDate.id_log_cuti)
+        .subquery()
+    )
 
 
 ## helper, dapatkan semua id karyawan dari pm
@@ -96,20 +107,28 @@ async def get_dashboard_tim(pm_id: int, db: AsyncSession) -> list[PMDashboardTim
     if not team_ids:
         return []
 
-    result = await db.execute(select(LogCuti).options(
-        selectinload(LogCuti.user_log)).where(
+    min_tgl = _min_tanggal_cuti_subquery()
+
+    result = await db.execute(
+        select(LogCuti)
+        .options(
+            selectinload(LogCuti.user_log),
+            selectinload(LogCuti.tanggal_list),
+        )
+        .join(min_tgl, min_tgl.c.id_log_cuti == LogCuti.id_log_cuti)
+        .where(
             LogCuti.id_user.in_(team_ids), LogCuti.status.in_(
                 ["menunggu_pm", "disetujui_pm", "ditolak_pm",])
-                ).order_by(LogCuti.tanggal_mulai.asc())
+        )
+        .order_by(min_tgl.c.mulai.asc())
     )
-    logs = result.scalars().all()
+    logs = result.scalars().unique().all()
 
     return [
         PMDashboardTimOut(
             nama=log.user_log.nama,
             jenis_cuti=log.jenis_cuti,
-            tanggal_mulai=log.tanggal_mulai,
-            tanggal_selesai=log.tanggal_selesai,
+            tanggal=sorted([ld.tanggal for ld in log.tanggal_list]),
             tanggal_pengajuan=log.tanggal_pengajuan,
             status=log.status
         ) for log in logs
@@ -149,16 +168,18 @@ async def get_ringkasan_tim(pm_id: int, db: AsyncSession) -> PMPersetujuanRingka
     )
     menunggu_persetujuan = result_menunggu.scalar() or 0
 
-    ## sedang cuti (sudah disetujui direktur dan tanggal sekarang dalam range cuti)
+    ## sedang cuti (sudah disetujui dan tanggal sekarang dalam list tanggal cuti)
+    approved_statuses = ["disetujui_hr", "disetujui_direktur", "cuti_bersama"]
     result_sedang = await db.execute(
-        select(func.count(LogCuti.id_log_cuti)).where(
+        select(LogCuti.id_log_cuti).options(
+            selectinload(LogCuti.tanggal_list)
+        ).where(
             LogCuti.id_user.in_(team_ids),
-            LogCuti.status == "disetujui_direktur",
-            LogCuti.tanggal_mulai <= today,
-            LogCuti.tanggal_selesai >= today,
+            LogCuti.status.in_(approved_statuses),
         )
     )
-    sedang_cuti = result_sedang.scalar() or 0
+    all_cuti_logs = result_sedang.scalars().unique().all()
+    sedang_cuti = sum(1 for log in all_cuti_logs if any(ld.tanggal == today for ld in log.tanggal_list))
 
     return PMPersetujuanRingkasanTimOut(
         tahun=year,
@@ -176,23 +197,27 @@ async def get_history_cuti_tim(pm_id: int, db:AsyncSession) -> list[PMHistoryPer
 
         return []
 
+    min_tgl = _min_tanggal_cuti_subquery()
+
     result = await db.execute(select(LogCuti).options(
         selectinload(LogCuti.user_log),
-        selectinload(LogCuti.user_backup)).where(
+        selectinload(LogCuti.user_backup),
+        selectinload(LogCuti.tanggal_list))
+        .join(min_tgl, min_tgl.c.id_log_cuti == LogCuti.id_log_cuti)
+        .where(
             LogCuti.id_user.in_(team_ids),
             LogCuti.status == "disetujui_hr"
-        ).order_by(LogCuti.tanggal_mulai.desc())
+        ).order_by(min_tgl.c.mulai.desc())
     )
-    logs = result.scalars().all()
+    logs = result.scalars().unique().all()
 
     return [
         PMHistoryPersetujuanOut(
-            tanggal_mulai=log.tanggal_mulai,
-            tanggal_selesai=log.tanggal_selesai,
+            tanggal=sorted([ld.tanggal for ld in log.tanggal_list]),
             nama=log.user_log.nama,
             jenis_cuti=log.jenis_cuti,
             keterangan=log.keterangan_cuti,
-            durasi=(log.tanggal_selesai-log.tanggal_mulai).days+1,
+            durasi=len(log.tanggal_list),
             pengganti=log.user_backup.nama if log.user_backup else "-",
             tanggal_pengajuan=log.tanggal_pengajuan,
             status=log.status
@@ -238,24 +263,22 @@ async def get_rekap_cuti_detail(pm_id: int, db: AsyncSession) -> list[PMRekapCut
     if not users:
         return []
 
-    result_cuti = await db.execute(select(LogCuti.id_user).where(
-        LogCuti.id_user.in_([u.id_user for u in users]),
-        LogCuti.tanggal_mulai <= today,
-        LogCuti.tanggal_selesai >= today,
-        LogCuti.status == "disetujui_direktur"
-    ))
-    sedang_cuti_ids = {row[0] for row in result_cuti.all()}
+    result_cuti = await db.execute(
+        select(LogCuti).options(
+            selectinload(LogCuti.tanggal_list)
+        ).where(
+            LogCuti.id_user.in_([u.id_user for u in users]),
+            LogCuti.status.in_(["disetujui_hr", "disetujui_direktur", "cuti_bersama"])
+        )
+    )
+    all_cuti_logs = result_cuti.scalars().unique().all()
+    sedang_cuti_ids = {log.id_user for log in all_cuti_logs if any(ld.tanggal == today for ld in log.tanggal_list)}
 
     detail = []
     for user in users:
         approved_statuses = ["disetujui_pm", "disetujui_hr", "disetujui_direktur"]
-        result_used = await db.execute(select(func.sum(
-            func.datediff(LogCuti.tanggal_selesai, LogCuti.tanggal_mulai) + 1
-        )).where(
-            LogCuti.id_user == user.id_user,
-            LogCuti.status.in_(approved_statuses)
-        ))
-        penggunaan_cuti = result_used.scalar() or 0
+        user_cuti_logs = [log for log in all_cuti_logs if log.id_user == user.id_user]
+        penggunaan_cuti = sum(len(log.tanggal_list) for log in user_cuti_logs if log.status in approved_statuses)
 
         detail.append(PMRekapCutiDetailJatah(
             nama=user.nama,
@@ -283,27 +306,35 @@ async def get_rekap_penambahan_kerja_detail(pm_id: int, db: AsyncSession) -> lis
         
         return []
 
+    ## sedang kerja = ada tanggal kerja yang jatuh hari ini (final: HR/direktur/legacy)
     result_kerja = await db.execute(select(LogPenambahanKerja.id_user).where(
         LogPenambahanKerja.id_user.in_([u.id_user for u in users]),
-        LogPenambahanKerja.tanggal_mulai <= today,
-        LogPenambahanKerja.tanggal_selesai >= today,
-        LogPenambahanKerja.status == "disetujui_hr"
-    ))
+        LogPenambahanKerja.status.in_(["disetujui_pm", "disetujui_hr", "disetujui_direktur"]),
+        LogPenambahanKerja.id_pengajuan_kerja.in_(
+            select(LogPenambahanKerjaDate.id_pengajuan_kerja).where(
+                LogPenambahanKerjaDate.tanggal == today
+            )
+        )
+    ).distinct())
     sedang_kerja_ids = {row[0] for row in result_kerja.all()}
 
     detail = []
     for user in users:
         result_all = await db.execute(
-            select(LogPenambahanKerja).where(LogPenambahanKerja.id_user == user.id_user)
+            select(LogPenambahanKerja)
+            .options(selectinload(LogPenambahanKerja.tanggal_list))
+            .where(LogPenambahanKerja.id_user == user.id_user)
         )
-        all_logs = result_all.scalars().all()
+        all_logs = result_all.scalars().unique().all()
 
         total_pengajuan = len(all_logs)
-        disetujui = sum(1 for log in all_logs if log.status == "disetujui_hr")
-        ditolak = sum(1 for log in all_logs if log.status in ("ditolak_pm", "ditolak_hr"))
+        final_acc = ("disetujui_pm", "disetujui_hr", "disetujui_direktur")
+        final_tolak = ("ditolak_pm", "ditolak_hr", "ditolak_direktur")
+        disetujui = sum(1 for log in all_logs if log.status in final_acc)
+        ditolak = sum(1 for log in all_logs if log.status in final_tolak)
         tanggal_kerja = [
-            TanggalKerjaItem(tanggal_mulai=log.tanggal_mulai, tanggal_selesai=log.tanggal_selesai)
-            for log in all_logs if log.status == "disetujui_hr"
+            TanggalKerjaItem(tanggal=sorted([ld.tanggal for ld in log.tanggal_list]))
+            for log in all_logs if log.status in final_acc
         ]
 
         detail.append(PMRekapPenambahanKerjaDetail(

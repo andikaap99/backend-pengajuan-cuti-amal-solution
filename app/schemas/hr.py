@@ -21,8 +21,7 @@ class HRDashboardRingkasanOut(BaseModel):
 class HRListCutiKaryawanMendatangOut(BaseModel):
     nama: str
     jenis_cuti: str
-    tanggal_mulai: date
-    tanggal_selesai: date
+    tanggal: list[date] = []
     tanggal_pengajuan: datetime
     status: str
 
@@ -47,8 +46,7 @@ class HRRekapitulasiOut(BaseModel):
 ## log cuti
 class HRLogCutiOut(BaseModel):
     nama: str
-    tanggal_mulai: date
-    tanggal_selesai: date
+    tanggal: list[date] = []
     durasi: int
     jenis_cuti: str
     keterangan: str
@@ -73,6 +71,8 @@ class HRRingkasanKaryawanOut(BaseModel):
 ## tabel karyawan
 class HRTabelKaryawanOut(BaseModel):
     id_user: int
+    username: str
+    password: str
     nama: str
     departemen: str
     jabatan: str
@@ -104,6 +104,7 @@ class HRDaftarCutiKaryawanOut(BaseModel):
 
 ## edit karyawan
 class EditKaryawanRequest(BaseModel):
+    username: Optional[str] = None
     nama: Optional[str] = None
     role: Optional[str] = None
     id_departemen: Optional[int] = None
@@ -111,6 +112,7 @@ class EditKaryawanRequest(BaseModel):
     no_telp: Optional[str] = None
     tanggal_bergabung: Optional[date] = None
     status: Optional[Literal["Aktif", "Cuti"]] = None
+    password: Optional[str] = None
     pm_add: Optional[list[int]] = None
     pm_remove: Optional[list[int]] = None
 
@@ -118,15 +120,24 @@ class EditKaryawanResponse(BaseModel):
     detail: str
 
 
+## reset password
+class ResetPasswordResponse(BaseModel):
+    detail: str
+
+
+## delete karyawan
+class DeleteKaryawanResponse(BaseModel):
+    detail: str
+
+
 ## log pengajuan kerja
 class HRLogPenambahanKerjaOut(BaseModel):
     nama: str
-    tanggal_mulai: date
-    tanggal_selesai: date
+    tanggal: list[date] = []
     durasi: int
     keterangan: str
     tanggal_pengajuan: datetime
-    status: Literal["menunggu_pm", "disetujui_pm", "ditolak_pm", "menunggu_hr", "disetujui_hr", "ditolak_hr", "menunggu_direktur"]
+    status: Literal["menunggu_pm", "disetujui_pm", "ditolak_pm", "menunggu_hr", "disetujui_hr", "ditolak_hr", "menunggu_direktur", "disetujui_direktur", "ditolak_direktur"]
     pengganti: str
     approved_by: Optional[str] = None
 

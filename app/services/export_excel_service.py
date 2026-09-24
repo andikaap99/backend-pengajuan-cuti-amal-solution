@@ -3,18 +3,15 @@ from io import BytesIO
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-from sqlalchemy import select, extract
+from sqlalchemy import select, extract, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.log_cuti import LogCuti
+from app.models.log_cuti_date import LogCutiDate
 from app.models.user import User
 from app.services.cuti_service import hitung_cuti_terpakai
-
-BULAN_INDONESIA = {
-    1: "Januari", 2: "Februari", 3: "Maret", 4: "April",
-    5: "Mei", 6: "Juni", 7: "Juli", 8: "Agustus",
-    9: "September", 10: "Oktober", 11: "November", 12: "Desember",
-}
+from app.services.date_format_service import BULAN_INDONESIA, format_tanggal_grouped
 
 
 def _format_dates(logs: list[LogCuti]) -> str:
@@ -23,33 +20,35 @@ def _format_dates(logs: list[LogCuti]) -> str:
 
     all_dates = []
     for log in logs:
-        current = log.tanggal_mulai
-        while current <= log.tanggal_selesai:
-            all_dates.append(current)
-            current += timedelta(days=1)
+        for log_date in log.tanggal_list:
+            all_dates.append(log_date.tanggal)
 
-    all_dates.sort()
+    return format_tanggal_grouped(all_dates)
 
-    groups: list[tuple[date, date]] = []
-    for d in all_dates:
-        if groups and d == groups[-1][1] + timedelta(days=1):
-            groups[-1] = (groups[-1][0], d)
-        else:
-            groups.append((d, d))
 
-    parts = []
-    for start, end in groups:
-        bulan = BULAN_INDONESIA[start.month]
-        if start == end:
-            parts.append(f"{start.day} {bulan}")
-        else:
-            end_bulan = BULAN_INDONESIA[end.month]
-            if start.month == end.month:
-                parts.append(f"{start.day}-{end.day} {bulan}")
-            else:
-                parts.append(f"{start.day} {bulan} - {end.day} {end_bulan} {end.year}")
+## log cuti final milik user pada tahun tertentu
+## (tahun = min(tanggal_list) per log, pengganti extract kolom tanggal_mulai lama)
+async def get_approved_logs_for_year(user_id: int, year: int, db: AsyncSession) -> list[LogCuti]:
+    approved_statuses = ["disetujui_hr", "disetujui_direktur", "cuti_bersama"]
 
-    return ", ".join(parts)
+    min_tgl = (
+        select(LogCutiDate.id_log_cuti, func.min(LogCutiDate.tanggal).label("mulai"))
+        .group_by(LogCutiDate.id_log_cuti)
+        .subquery()
+    )
+
+    result_logs = await db.execute(
+        select(LogCuti).options(
+            selectinload(LogCuti.tanggal_list)
+        )
+        .join(min_tgl, min_tgl.c.id_log_cuti == LogCuti.id_log_cuti)
+        .where(
+            LogCuti.id_user == user_id,
+            LogCuti.status.in_(approved_statuses),
+            extract("year", min_tgl.c.mulai) == year,
+        )
+    )
+    return result_logs.scalars().unique().all()
 
 
 async def export_cuti_excel(year: int, db: AsyncSession) -> bytes:
@@ -57,7 +56,7 @@ async def export_cuti_excel(year: int, db: AsyncSession) -> bytes:
 
     result_users = await db.execute(
         select(User)
-        .where(User.role.in_(["karyawan", "pm", "hr", "staff_hr"]))
+        .where(User.role.in_(["karyawan", "pm", "hr_manager", "staff_hr"]))
         .order_by(User.nama.asc())
     )
     users = result_users.scalars().all()
@@ -88,15 +87,7 @@ async def export_cuti_excel(year: int, db: AsyncSession) -> bytes:
     no = 1
 
     for user in users:
-        result_logs = await db.execute(
-            select(LogCuti).where(
-                LogCuti.id_user == user.id_user,
-                LogCuti.status.in_(approved_statuses),
-                extract("year", LogCuti.tanggal_mulai) == year,
-            )
-        )
-        logs = result_logs.scalars().all()
-
+        logs = await get_approved_logs_for_year(user.id_user, year, db)
         cuti_terpakai = await hitung_cuti_terpakai(user.id_user, db)
         keterangan = _format_dates(logs)
 

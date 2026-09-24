@@ -25,7 +25,7 @@ router = APIRouter(prefix="/approval", tags=["Approval"])
 ## queue card
 @router.get("/approval-queue", response_model=list[PersetujuanQueueCutiOut])
 async def get_queue(
-    current_user: Annotated[User, Depends(require_role("pm", "hr", "direktur", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("pm", "hr_manager", "direktur", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
 
@@ -35,7 +35,7 @@ async def get_queue(
 @router.post("/approval{log_cuti_id}", response_model=ApprovalResponse)
 async def approve_or_decline(
     log_cuti_id: int, data: ApprovalRequest,
-    current_user: Annotated[User, Depends(require_role("pm", "hr", "direktur", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("pm", "hr_manager", "direktur", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)],
     background_tasks: BackgroundTasks
 ):
@@ -94,13 +94,13 @@ async def get_approval_pm_detail_penambahan_kerja(
 ## queue penambahan kerja (PM, HR, Direktur)
 @router.get("/penambahan-kerja-queue")
 async def get_queue_penambahan_kerja(
-    current_user: Annotated[User, Depends(require_role("pm", "hr", "staff_hr", "direktur"))],
+    current_user: Annotated[User, Depends(require_role("pm", "hr_manager", "staff_hr", "direktur"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     if current_user.role == "direktur":
-        return await get_penambahan_kerja_queue_direktur(db)
-    if current_user.role in ("hr", "staff_hr"):
-        return await get_penambahan_kerja_queue_hr(db)
+        return await get_penambahan_kerja_queue_direktur(db, current_user.id_user)
+    if current_user.role in ("hr_manager", "staff_hr"):
+        return await get_penambahan_kerja_queue_hr(db, current_user.id_user)
 
     return await get_penambahan_kerja_queue(current_user.id_user, db)
 
@@ -109,13 +109,13 @@ async def get_queue_penambahan_kerja(
 @router.post("/penambahan-kerja/{log_id}", response_model=PenambahanKerjaApprovalResponse)
 async def approve_or_decline_penambahan_kerja(
     log_id: int, data: PenambahanKerjaApprovalRequest,
-    current_user: Annotated[User, Depends(require_role("pm", "hr", "staff_hr", "direktur"))],
+    current_user: Annotated[User, Depends(require_role("pm", "hr_manager", "staff_hr", "direktur"))],
     db: Annotated[AsyncSession, Depends(get_db)],
     background_tasks: BackgroundTasks
 ):
     if current_user.role == "direktur":
         return await process_penambahan_kerja_direktur(log_id, current_user, data.action, data.alasan, db, background_tasks)
-    if current_user.role in ["hr", "staff_hr"]:
+    if current_user.role in ["hr_manager", "staff_hr"]:
         return await process_penambahan_kerja_hr(log_id, current_user, data.action, data.alasan, db, background_tasks)
 
     return await process_penambahan_kerja(log_id, current_user.id_user, data.action, data.alasan, db, background_tasks)

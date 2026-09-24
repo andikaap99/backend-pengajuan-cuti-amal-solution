@@ -12,25 +12,26 @@ from app.schemas.kalender import CutiSayaOut
 async def get_my_kalender_cuti(user_id: int, db: AsyncSession) -> list[CutiSayaOut]:
     result = await db.execute(
         select(LogCuti)
-        .options(selectinload(LogCuti.user_log))
+        .options(
+            selectinload(LogCuti.user_log),
+            selectinload(LogCuti.tanggal_list),
+        )
         .where(LogCuti.id_user == user_id)
     )
-    logs = result.scalars().all()
+    logs = result.scalars().unique().all()
 
     data = []
     for log in logs:
-        current = log.tanggal_mulai
-        while current <= log.tanggal_selesai:
+        for log_date in log.tanggal_list:
             data.append(
                 CutiSayaOut(
-                    tanggal=current,
+                    tanggal=log_date.tanggal,
                     nama=log.user_log.nama,
                     keterangan=log.keterangan_cuti,
                     jenis_cuti=log.jenis_cuti,
                     status=log.status,
                 )
             )
-            current += timedelta(days=1)
 
     return data
 
@@ -65,24 +66,25 @@ async def get_kalender_cuti_tim(user_id: int, db: AsyncSession) -> list[CutiSaya
 
     result = await db.execute(
         select(LogCuti)
-        .options(selectinload(LogCuti.user_log))
+        .options(
+            selectinload(LogCuti.user_log),
+            selectinload(LogCuti.tanggal_list),
+        )
         .where(LogCuti.id_user.in_(all_ids))
     )
-    logs = result.scalars().all()
+    logs = result.scalars().unique().all()
 
     data = []
     for log in logs:
-        current = log.tanggal_mulai
-        while current <= log.tanggal_selesai:
+        for log_date in log.tanggal_list:
             data.append(
                 CutiSayaOut(
-                    tanggal=current,
+                    tanggal=log_date.tanggal,
                     nama=log.user_log.nama,
                     keterangan=log.keterangan_cuti,
                     jenis_cuti=log.jenis_cuti,
                     status=log.status,
                 )
             )
-            current += timedelta(days=1)
 
     return data

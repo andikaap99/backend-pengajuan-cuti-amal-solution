@@ -98,14 +98,9 @@
             <td>{{ jenis_cuti }}</td>
         </tr>
         <tr>
-            <td>Tanggal Mulai</td>
+            <td>Tanggal Cuti</td>
             <td>:</td>
-            <td>{{ tanggal_mulai }}</td>
-        </tr>
-        <tr>
-            <td>Tanggal Selesai</td>
-            <td>:</td>
-            <td>{{ tanggal_selesai }}</td>
+            <td>{{ tanggal_list | join(', ') }}</td>
         </tr>
         <tr>
             <td>Durasi</td>

@@ -5,14 +5,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.log_cuti import LogCuti
+from app.models.log_cuti_date import LogCutiDate
 from app.models.log_cuti_approval_pm import LogCutiApprovalPM
+from app.models.log_cuti_ekstra import LogCutiEkstra
 from app.models.log_penambahan_kerja import LogPenambahanKerja
+from app.models.log_penambahan_kerja_date import LogPenambahanKerjaDate
 from app.models.log_penambahan_kerja_approval_pm import LogPenambahanKerjaApprovalPM
 from app.models.log_reassignment_approval import LogReassignmentApproval
 from app.models.user import User
 from app.models.user_pm import UserPM
 from app.models.departemen import Departemen
 from app.schemas.hr import HRDashboardRingkasanOut, HRDashboardPersetujuanOut, HRListCutiKaryawanMendatangOut, HRRekapitulasiOut, HRLogCutiOut, HRRingkasanKaryawanOut, HRTabelKaryawanOut, HRTabelDepartemenOut, HRManajemenJatahCutiRingkasanOut, HRDaftarCutiKaryawanOut, HRLogPenambahanKerjaOut, HRRekapitulasiPenambahanKerjaOut
+from app.core.security import hash_password
 from app.services.email_service import send_pengajuan_notification
 from app.services.cuti_service import hitung_cuti_terpakai
 
@@ -27,14 +31,15 @@ async def get_dashboard_ringkasan_hr(db: AsyncSession, user_id: int, role: str):
     result_total = await db.execute(select(func.count(User.id_user)))
     total_karyawan = result_total.scalar_one() or 0
 
-    target_status_cuti = "menunggu_hr" if role in ("hr", "staff_hr") else "menunggu_direktur"
+    target_status_cuti = "menunggu_hr" if role in ("hr_manager", "staff_hr") else "menunggu_direktur"
     result_menunggu_cuti = await db.execute(select(func.count(LogCuti.id_log_cuti)).where(
         LogCuti.status == target_status_cuti
     ))
     total_menunggu_cuti = result_menunggu_cuti.scalar_one() or 0
 
+    target_status_kerja = "menunggu_hr" if role in ("hr_manager", "staff_hr") else "menunggu_direktur"
     result_menunggu_kerja = await db.execute(select(func.count(LogPenambahanKerja.id_pengajuan_kerja)).where(
-        LogPenambahanKerja.status == "menunggu_hr"
+        LogPenambahanKerja.status == target_status_kerja
     ))
     total_menunggu_kerja = result_menunggu_kerja.scalar_one() or 0
 
@@ -62,8 +67,9 @@ async def get_dashboard_ringkasan_hr(db: AsyncSession, user_id: int, role: str):
     ))
     diacc_cuti = result_diacc_cuti.scalar_one() or 0
 
+    acc_statuses_kerja = ["disetujui_pm", "disetujui_hr", "disetujui_direktur"]
     result_diacc_kerja = await db.execute(select(func.count(LogPenambahanKerja.id_pengajuan_kerja)).where(
-        LogPenambahanKerja.status == "disetujui_hr",
+        LogPenambahanKerja.status.in_(acc_statuses_kerja),
         extract("month", LogPenambahanKerja.tanggal_pengajuan) == curr_month,
         extract("year", LogPenambahanKerja.tanggal_pengajuan) == curr_year,
     ))
@@ -80,7 +86,7 @@ async def get_dashboard_ringkasan_hr(db: AsyncSession, user_id: int, role: str):
     ditolak_cuti = result_ditolak_cuti.scalar_one() or 0
 
     result_ditolak_kerja = await db.execute(select(func.count(LogPenambahanKerja.id_pengajuan_kerja)).where(
-        LogPenambahanKerja.status.in_(["ditolak_pm", "ditolak_hr"]),
+        LogPenambahanKerja.status.in_(["ditolak_pm", "ditolak_hr", "ditolak_direktur"]),
         extract("month", LogPenambahanKerja.tanggal_pengajuan) == curr_month,
         extract("year", LogPenambahanKerja.tanggal_pengajuan) == curr_year,
     ))
@@ -110,18 +116,30 @@ async def get_list_cuti_karyawan_mendatang(db: AsyncSession) -> list[HRListCutiK
 
     approved_statuses = ["disetujui_hr", "disetujui_direktur", "cuti_bersama"]
 
-    result = await db.execute(select(LogCuti).options(selectinload(
-        LogCuti.user_log)).where(LogCuti.tanggal_mulai >= today,
-        LogCuti.status.in_(approved_statuses)).order_by(LogCuti.tanggal_mulai.asc())
+    ## tanggal mulai = min(tanggal_list) per log (pengganti kolom tanggal_mulai lama)
+    min_tgl = (
+        select(LogCutiDate.id_log_cuti, func.min(LogCutiDate.tanggal).label("mulai"))
+        .group_by(LogCutiDate.id_log_cuti)
+        .subquery()
     )
-    logs = result.scalars().all()
+
+    result = await db.execute(
+        select(LogCuti)
+        .join(min_tgl, min_tgl.c.id_log_cuti == LogCuti.id_log_cuti)
+        .options(
+            selectinload(LogCuti.user_log),
+            selectinload(LogCuti.tanggal_list),
+        )
+        .where(min_tgl.c.mulai >= today, LogCuti.status.in_(approved_statuses))
+        .order_by(min_tgl.c.mulai.asc())
+    )
+    logs = result.scalars().unique().all()
 
     return [
         HRListCutiKaryawanMendatangOut(
             nama=log.user_log.nama,
             jenis_cuti=log.jenis_cuti,
-            tanggal_mulai=log.tanggal_mulai,
-            tanggal_selesai=log.tanggal_selesai,
+            tanggal=sorted([ld.tanggal for ld in log.tanggal_list]),
             tanggal_pengajuan=log.tanggal_pengajuan,
             status=log.status
         ) for log in logs
@@ -135,28 +153,41 @@ async def get_persetujuan(db: AsyncSession, role: str) -> HRDashboardPersetujuan
     curr_month = today.month
     curr_year = today.year
 
-    target_status = "menunggu_hr" if role in ("hr", "staff_hr") else "menunggu_direktur"
+    ## tanggal mulai log = min(tanggal_list) per log
+    min_tgl = (
+        select(LogCutiDate.id_log_cuti, func.min(LogCutiDate.tanggal).label("mulai"))
+        .group_by(LogCutiDate.id_log_cuti)
+        .subquery()
+    )
+
+    target_status = "menunggu_hr" if role in ("hr_manager", "staff_hr") else "menunggu_direktur"
     result_menunggu = await db.execute(select(func.count(LogCuti.id_log_cuti)).where(LogCuti.status == target_status))
     total_menunggu = result_menunggu.scalar_one() or 0
 
-    acc_status = "disetujui_hr" if role in ("hr", "staff_hr") else "disetujui_direktur"
-    result_disetujui = await db.execute(select(func.count(
-        LogCuti.id_log_cuti)).where(
+    acc_status = "disetujui_hr" if role in ("hr_manager", "staff_hr") else "disetujui_direktur"
+    result_disetujui = await db.execute(
+        select(func.count(LogCuti.id_log_cuti))
+        .select_from(LogCuti)
+        .join(min_tgl, min_tgl.c.id_log_cuti == LogCuti.id_log_cuti)
+        .where(
             LogCuti.status.in_([acc_status, "cuti_bersama"]),
-            extract("month", LogCuti.tanggal_mulai) == curr_month,
-            extract("year", LogCuti.tanggal_mulai) == curr_year
-            )
+            extract("month", min_tgl.c.mulai) == curr_month,
+            extract("year", min_tgl.c.mulai) == curr_year,
         )
+    )
     total_disetujui_bulan_ini = result_disetujui.scalar_one() or 0
 
-    reject_status = "ditolak_hr" if role in ("hr", "staff_hr") else "ditolak_direktur"
-    result_ditolak = await db.execute(select(func.count(
-        LogCuti.id_log_cuti)).where(
+    reject_status = "ditolak_hr" if role in ("hr_manager", "staff_hr") else "ditolak_direktur"
+    result_ditolak = await db.execute(
+        select(func.count(LogCuti.id_log_cuti))
+        .select_from(LogCuti)
+        .join(min_tgl, min_tgl.c.id_log_cuti == LogCuti.id_log_cuti)
+        .where(
             LogCuti.status == reject_status,
-            extract("month", LogCuti.tanggal_mulai) == curr_month,
-            extract("year", LogCuti.tanggal_mulai) == curr_year
-            )
+            extract("month", min_tgl.c.mulai) == curr_month,
+            extract("year", min_tgl.c.mulai) == curr_year,
         )
+    )
     total_ditolak_bulan_ini = result_ditolak.scalar_one() or 0
 
     return HRDashboardPersetujuanOut(
@@ -175,7 +206,7 @@ async def get_rekapitulasi_cuti(db: AsyncSession) -> list[HRRekapitulasiOut]:
 
     result = await db.execute(
         select(User).options(selectinload(User.user_departemen)).where(
-            User.role.in_(["karyawan", "pm", "hr", "staff_hr"])
+            User.role.in_(["karyawan", "pm", "hr_manager", "staff_hr"])
         ).order_by(User.nama.asc())
     )
     users = result.scalars().all()
@@ -203,14 +234,23 @@ async def get_rekapitulasi_cuti(db: AsyncSession) -> list[HRRekapitulasiOut]:
 
 ## log cuti
 async def get_cuti_log(db: AsyncSession) -> list[HRLogCutiOut]:
+    min_tgl = (
+        select(LogCutiDate.id_log_cuti, func.min(LogCutiDate.tanggal).label("mulai"))
+        .group_by(LogCutiDate.id_log_cuti)
+        .subquery()
+    )
+
     result = await db.execute(select(LogCuti).options(
         selectinload(LogCuti.user_log),
         selectinload(LogCuti.user_backup),
         selectinload(LogCuti.hr_log),
         selectinload(LogCuti.direktur_log),
-        selectinload(LogCuti.approval_pm_list).selectinload(LogCutiApprovalPM.pm)
-    ).order_by(LogCuti.tanggal_mulai.desc()))
-    logs = result.scalars().all()
+        selectinload(LogCuti.approval_pm_list).selectinload(LogCutiApprovalPM.pm),
+        selectinload(LogCuti.tanggal_list),
+    )
+    .join(min_tgl, min_tgl.c.id_log_cuti == LogCuti.id_log_cuti)
+    .order_by(min_tgl.c.mulai.desc()))
+    logs = result.scalars().unique().all()
 
     def get_approved_by(log: LogCuti) -> str:
         if log.hr_log:
@@ -225,9 +265,8 @@ async def get_cuti_log(db: AsyncSession) -> list[HRLogCutiOut]:
     return [
         HRLogCutiOut(
             nama=log.user_log.nama,
-            tanggal_mulai=log.tanggal_mulai,
-            tanggal_selesai=log.tanggal_selesai,
-            durasi=(log.tanggal_selesai - log.tanggal_mulai).days + 1,
+            tanggal=sorted([ld.tanggal for ld in log.tanggal_list]),
+            durasi=len(log.tanggal_list),
             jenis_cuti=log.jenis_cuti,
             keterangan=log.keterangan_cuti,
             pengganti=log.user_backup.nama if log.user_backup else "-",
@@ -266,6 +305,8 @@ async def get_tabel_karyawan(db: AsyncSession) -> list[HRTabelKaryawanOut]:
     return [
         HRTabelKaryawanOut(
             id_user=user.id_user,
+            username=user.username,
+            password=user.password,
             nama=user.nama,
             departemen=user.user_departemen.nama_departemen,
             jabatan=user.role,
@@ -310,7 +351,7 @@ async def get_manajemen_jatah_cuti(db: AsyncSession) -> HRManajemenJatahCutiRing
 
 ## daftar cuti karyawan
 async def get_daftar_cuti_karyawan(db: AsyncSession) -> list[HRDaftarCutiKaryawanOut]:
-    roles = ["karyawan", "pm", "hr", "staff_hr"]
+    roles = ["karyawan", "pm", "hr_manager", "staff_hr"]
     today = date.today()
 
     result = await db.execute(select(User).options(
@@ -341,6 +382,22 @@ async def edit_karyawan(user_id: int, data: dict, db: AsyncSession, background_t
 
     pm_add = data.pop("pm_add", None)
     pm_remove = data.pop("pm_remove", None)
+    password = data.pop("password", None)
+
+    ## hash password jika ada
+    if password:
+        user.password = hash_password(password)
+
+    ## validasi username
+    username = data.get("username")
+    if username:
+        if " " in username:
+            raise HTTPException(status_code=400, detail="Username tidak boleh mengandung spasi")
+        result_existing = await db.execute(
+            select(User).where(User.username == username, User.id_user != user_id)
+        )
+        if result_existing.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Username sudah digunakan")
 
     for field, value in data.items():
         if value is not None:
@@ -472,12 +529,16 @@ async def edit_karyawan(user_id: int, data: dict, db: AsyncSession, background_t
 
                     ## kirim email notifikasi ke pm baru
                     if new_pm_user and new_pm_user.email:
-                        result_log = await db.execute(select(LogCuti).where(LogCuti.id_log_cuti == log_id))
+                        result_log = await db.execute(
+                            select(LogCuti)
+                            .options(selectinload(LogCuti.tanggal_list))
+                            .where(LogCuti.id_log_cuti == log_id)
+                        )
                         log_cuti = result_log.scalar_one_or_none()
                         if log_cuti:
                             background_tasks.add_task(
                                 send_pengajuan_notification, user, new_pm_user, "cuti tahunan",
-                                log_cuti.tanggal_mulai, log_cuti.tanggal_selesai, log_cuti.keterangan_cuti,
+                                sorted([ld.tanggal for ld in log_cuti.tanggal_list]), log_cuti.keterangan_cuti,
                             )
 
                 ## buat approval record log_penambahan_kerja untuk pm baru
@@ -511,13 +572,15 @@ async def edit_karyawan(user_id: int, data: dict, db: AsyncSession, background_t
                     ## kirim email notifikasi ke pm baru
                     if new_pm_user and new_pm_user.email:
                         result_log_kerja = await db.execute(
-                            select(LogPenambahanKerja).where(LogPenambahanKerja.id_pengajuan_kerja == kerja_id)
+                            select(LogPenambahanKerja)
+                            .options(selectinload(LogPenambahanKerja.tanggal_list))
+                            .where(LogPenambahanKerja.id_pengajuan_kerja == kerja_id)
                         )
                         log_kerja = result_log_kerja.scalar_one_or_none()
                         if log_kerja:
                             background_tasks.add_task(
                                 send_pengajuan_notification, user, new_pm_user, "penambahan kerja",
-                                log_kerja.tanggal_mulai, log_kerja.tanggal_selesai, log_kerja.keterangan_pengajuan,
+                                sorted([ld.tanggal for ld in log_kerja.tanggal_list]), log_kerja.keterangan_pengajuan,
                             )
 
     ## set status final berdasarkan approval records
@@ -605,21 +668,33 @@ async def edit_karyawan(user_id: int, data: dict, db: AsyncSession, background_t
 
 ## log pengajuan kerja
 async def get_log_penambahan_kerja(db: AsyncSession) -> list[HRLogPenambahanKerjaOut]:
+    min_tgl = (
+        select(LogPenambahanKerjaDate.id_pengajuan_kerja, func.min(LogPenambahanKerjaDate.tanggal).label("mulai"))
+        .group_by(LogPenambahanKerjaDate.id_pengajuan_kerja)
+        .subquery()
+    )
+
     result = await db.execute(select(LogPenambahanKerja).options(
         selectinload(LogPenambahanKerja.user_log),
+        selectinload(LogPenambahanKerja.tanggal_list),
         selectinload(LogPenambahanKerja.approval_pm_list).selectinload(LogPenambahanKerjaApprovalPM.pm)
-    ).order_by(LogPenambahanKerja.tanggal_mulai.desc()))
-    logs = result.scalars().all()
+    )
+    .join(min_tgl, min_tgl.c.id_pengajuan_kerja == LogPenambahanKerja.id_pengajuan_kerja)
+    .order_by(min_tgl.c.mulai.desc()))
+    logs = result.scalars().unique().all()
 
-    diproses_hr_ids = [log.diproses_hr for log in logs if log.diproses_hr]
-    hr_users = {}
-    if diproses_hr_ids:
-        hr_result = await db.execute(select(User).where(User.id_user.in_(diproses_hr_ids)))
-        hr_users = {u.id_user: u.nama for u in hr_result.scalars().all()}
+    ## kumpulkan id prosesor hr & direktur untuk approved_by
+    prosesor_ids = [log.diproses_hr for log in logs if log.diproses_hr]
+    prosesor_ids += [log.diproses_direktur for log in logs if log.diproses_direktur]
+    prosesor_users = {}
+    if prosesor_ids:
+        prosesor_result = await db.execute(select(User).where(User.id_user.in_(prosesor_ids)))
+        prosesor_users = {u.id_user: u.nama for u in prosesor_result.scalars().all()}
 
     def get_approved_by(log: LogPenambahanKerja) -> str:
-        if log.diproses_hr and log.diproses_hr in hr_users:
-            return hr_users[log.diproses_hr]
+        id_prosesor = log.diproses_direktur if log.status in ("disetujui_direktur", "ditolak_direktur") else log.diproses_hr
+        if id_prosesor and id_prosesor in prosesor_users:
+            return prosesor_users[id_prosesor]
         rejected_pm = [a.pm.nama for a in log.approval_pm_list if a.status == "ditolak"]
         if rejected_pm:
             return rejected_pm[0]
@@ -628,9 +703,8 @@ async def get_log_penambahan_kerja(db: AsyncSession) -> list[HRLogPenambahanKerj
     return [
         HRLogPenambahanKerjaOut(
             nama=log.user_log.nama,
-            tanggal_mulai=log.tanggal_mulai,
-            tanggal_selesai=log.tanggal_selesai,
-            durasi=(log.tanggal_selesai - log.tanggal_mulai).days + 1,
+            tanggal=sorted([ld.tanggal for ld in log.tanggal_list]),
+            durasi=len(log.tanggal_list),
             keterangan=log.keterangan_pengajuan,
             tanggal_pengajuan=log.tanggal_pengajuan,
             status=log.status,
@@ -644,7 +718,7 @@ async def get_log_penambahan_kerja(db: AsyncSession) -> list[HRLogPenambahanKerj
 async def get_rekapitulasi_penambahan_kerja(db: AsyncSession) -> list[HRRekapitulasiPenambahanKerjaOut]:
     result = await db.execute(
         select(User).options(selectinload(User.user_departemen)).where(
-            User.role.in_(["karyawan", "pm", "hr", "staff_hr"])
+            User.role.in_(["karyawan", "pm", "hr_manager", "staff_hr"])
         ).order_by(User.nama.asc())
     )
     users = result.scalars().all()
@@ -657,8 +731,10 @@ async def get_rekapitulasi_penambahan_kerja(db: AsyncSession) -> list[HRRekapitu
         all_logs = result_all.scalars().all()
 
         total_pengajuan = len(all_logs)
-        disetujui = sum(1 for log in all_logs if log.status == "disetujui_hr")
-        ditolak = sum(1 for log in all_logs if log.status in ("ditolak_pm", "ditolak_hr"))
+        final_acc = ("disetujui_pm", "disetujui_hr", "disetujui_direktur")
+        final_tolak = ("ditolak_pm", "ditolak_hr", "ditolak_direktur")
+        disetujui = sum(1 for log in all_logs if log.status in final_acc)
+        ditolak = sum(1 for log in all_logs if log.status in final_tolak)
 
         approved_by = "-"
         if all_logs:
@@ -668,6 +744,11 @@ async def get_rekapitulasi_penambahan_kerja(db: AsyncSession) -> list[HRRekapitu
                     hr_user_result = await db.execute(select(User).where(User.id_user == latest.diproses_hr))
                     hr_user = hr_user_result.scalar_one_or_none()
                     approved_by = hr_user.nama if hr_user else "-"
+            elif latest.status in ("disetujui_direktur", "ditolak_direktur"):
+                if latest.diproses_direktur:
+                    dir_user_result = await db.execute(select(User).where(User.id_user == latest.diproses_direktur))
+                    dir_user = dir_user_result.scalar_one_or_none()
+                    approved_by = dir_user.nama if dir_user else "-"
             elif latest.status == "ditolak_pm":
                 result_approval = await db.execute(
                     select(LogPenambahanKerjaApprovalPM, User.nama).join(User, LogPenambahanKerjaApprovalPM.id_pm == User.id_user).where(
@@ -689,3 +770,132 @@ async def get_rekapitulasi_penambahan_kerja(db: AsyncSession) -> list[HRRekapitu
         ))
 
     return rekap
+
+
+## delete karyawan
+async def delete_karyawan(user_id: int, current_user: User, db: AsyncSession) -> str:
+    result = await db.execute(select(User).where(User.id_user == user_id))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User tidak ditemukan!")
+
+    if user.id_user == current_user.id_user:
+        raise HTTPException(status_code=400, detail="Tidak bisa menghapus diri sendiri!")
+
+    ## cek PM terakhir untuk karyawan non-dept-1
+    if user.role == "pm":
+        result_karyawan_pm = await db.execute(
+            select(UserPM.id_karyawan).where(UserPM.id_pm == user_id)
+        )
+        karyawan_ids = [row[0] for row in result_karyawan_pm.all()]
+        for k_id in karyawan_ids:
+            result_karyawan = await db.execute(select(User).where(User.id_user == k_id))
+            karyawan = result_karyawan.scalar_one_or_none()
+            if karyawan and karyawan.role == "karyawan" and karyawan.id_departemen != 1:
+                result_pm_count = await db.execute(
+                    select(func.count(UserPM.id_user_pm)).where(UserPM.id_karyawan == k_id)
+                )
+                pm_count = result_pm_count.scalar_one() or 0
+                if pm_count <= 1:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="User ini adalah satu-satunya PM untuk beberapa karyawan, tidak bisa dihapus!",
+                    )
+
+    ## cek HR_manager terakhir
+    if user.role == "hr_manager":
+        result_hr_count = await db.execute(
+            select(func.count(User.id_user)).where(User.role == "hr_manager")
+        )
+        hr_count = result_hr_count.scalar() or 0
+        if hr_count <= 1:
+            raise HTTPException(
+                status_code=400,
+                detail="Tidak bisa menghapus HR Manager terakhir!",
+            )
+
+    ## cek Direktur terakhir
+    if user.role == "direktur":
+        result_dir_count = await db.execute(
+            select(func.count(User.id_user)).where(User.role == "direktur")
+        )
+        dir_count = result_dir_count.scalar() or 0
+        if dir_count <= 1:
+            raise HTTPException(
+                status_code=400,
+                detail="Tidak bisa menghapus Direktur terakhir!",
+            )
+
+    ## hapus log_cuti_approval_pm (pm sebagai approver)
+    result_approval_pm = await db.execute(
+        select(LogCutiApprovalPM).where(LogCutiApprovalPM.id_pm == user_id)
+    )
+    for approval in result_approval_pm.scalars().all():
+        await db.delete(approval)
+
+    ## hapus log_penambahan_kerja_approval_pm (pm sebagai approver)
+    result_approval_kerja = await db.execute(
+        select(LogPenambahanKerjaApprovalPM).where(LogPenambahanKerjaApprovalPM.id_pm == user_id)
+    )
+    for approval in result_approval_kerja.scalars().all():
+        await db.delete(approval)
+
+    ## hapus log_reassignment_approval
+    result_reassign_lama = await db.execute(
+        select(LogReassignmentApproval).where(LogReassignmentApproval.id_pm_lama == user_id)
+    )
+    for reassign in result_reassign_lama.scalars().all():
+        await db.delete(reassign)
+
+    result_reassign_baru = await db.execute(
+        select(LogReassignmentApproval).where(LogReassignmentApproval.id_pm_baru == user_id)
+    )
+    for reassign in result_reassign_baru.scalars().all():
+        await db.delete(reassign)
+
+    ## hapus log_cuti_ekstra
+    result_ekstra_user = await db.execute(
+        select(LogCutiEkstra).where(LogCutiEkstra.id_user == user_id)
+    )
+    for ekstra in result_ekstra_user.scalars().all():
+        await db.delete(ekstra)
+
+    result_ekstra_penambah = await db.execute(
+        select(LogCutiEkstra).where(LogCutiEkstra.id_penambah == user_id)
+    )
+    for ekstra in result_ekstra_penambah.scalars().all():
+        await db.delete(ekstra)
+
+    ## hapus log_cuti (akan cascade delete approval_pm via relationship)
+    result_log_cuti = await db.execute(
+        select(LogCuti).where(LogCuti.id_user == user_id)
+    )
+    for log in result_log_cuti.scalars().all():
+        await db.delete(log)
+
+    ## hapus log_penambahan_kerja
+    result_log_kerja = await db.execute(
+        select(LogPenambahanKerja).where(LogPenambahanKerja.id_user == user_id)
+    )
+    for log in result_log_kerja.scalars().all():
+        await db.delete(log)
+
+    ## hapus user_pm (karyawan dan pm)
+    result_user_pm_karyawan = await db.execute(
+        select(UserPM).where(UserPM.id_karyawan == user_id)
+    )
+    for upm in result_user_pm_karyawan.scalars().all():
+        await db.delete(upm)
+
+    result_user_pm_pm = await db.execute(
+        select(UserPM).where(UserPM.id_pm == user_id)
+    )
+    for upm in result_user_pm_pm.scalars().all():
+        await db.delete(upm)
+
+    ## terakhir, hapus user
+    await db.delete(user)
+    await db.commit()
+
+    return "User berhasil dihapus!"

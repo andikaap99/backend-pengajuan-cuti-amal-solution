@@ -1,7 +1,12 @@
 from typing import Annotated
+import secrets
+from datetime import datetime, timedelta, UTC
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,8 +15,13 @@ from app.core.security import create_access_token, get_current_user, hash_passwo
 from app.db import get_db
 from app.models.user import User
 from app.models.user_pm import UserPM
-from app.schemas.user import Token, UserOut, UserRegister, UserMeOut, UserRegisterAdmin, ChangePassword, ChangePasswordMessage, ExecutiveOut, UpdateProfile, UpdateProfileMessage
+from app.models.password_reset_token import PasswordResetToken
+from app.schemas.user import Token, UserOut, UserRegister, UserMeOut, UserRegisterAdmin, ChangePassword, ChangePasswordMessage, ExecutiveOut, UpdateProfile, UpdateProfileMessage, ForgotPasswordRequest, ForgotPasswordMessage, ResetPasswordRequest, ResetPasswordRequestById, ResetPasswordMessage
 from app.services.cuti_service import hitung_cuti_terpakai
+from app.services.email_service import send_forgot_password_email, send_password_changed_notification
+
+TEMPLATE_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
+templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -68,7 +78,7 @@ async def register(
 async def register(
     data: UserRegisterAdmin,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(require_role("hr", "direktur"))],
+    current_user: Annotated[User, Depends(require_role("hr_manager", "staff_hr", "direktur"))],
 ):
     result = await db.execute(select(User).where(User.username == data.username))
     if result.scalar_one_or_none():
@@ -185,3 +195,132 @@ async def update_profile(
     await db.commit()
 
     return UpdateProfileMessage(detail="Profile berhasil diupdate")
+
+
+## route forgot password
+@router.post("/forgot-password", response_model=ForgotPasswordMessage)
+async def forgot_password(
+    data: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    result = await db.execute(select(User).where(User.username == data.username))
+    user = result.scalar_one_or_none()
+
+    if user and user.email:
+        token = secrets.token_urlsafe(32)
+        expired_at = datetime.now(UTC) + timedelta(minutes=30)
+
+        reset_token = PasswordResetToken(
+            id_user=user.id_user,
+            token=token,
+            expired_at=expired_at,
+        )
+        db.add(reset_token)
+        await db.commit()
+
+        background_tasks.add_task(send_forgot_password_email, user, token)
+
+    return ForgotPasswordMessage(detail="Jika username terdaftar, link reset password telah dikirim")
+
+
+## validasi token reset password
+async def _get_valid_reset_token(token: str, db: AsyncSession) -> PasswordResetToken:
+    result = await db.execute(
+        select(PasswordResetToken).where(PasswordResetToken.token == token)
+    )
+    reset_token = result.scalar_one_or_none()
+
+    if not reset_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token tidak valid",
+        )
+
+    if reset_token.used:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token sudah digunakan",
+        )
+
+    expired_at = reset_token.expired_at
+    if expired_at.tzinfo is None:
+        expired_at = expired_at.replace(tzinfo=UTC)
+    if datetime.now(UTC) > expired_at:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token sudah expired",
+        )
+
+    return reset_token
+
+
+## route konfirmasi reset password via forgot password (password baru pilihan user)
+@router.post("/confirm-reset-password", response_model=ResetPasswordMessage)
+async def confirm_reset_password(
+    data: ResetPasswordRequest,
+    background_tasks: BackgroundTasks,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    reset_token = await _get_valid_reset_token(data.token, db)
+
+    result_user = await db.execute(
+        select(User).where(User.id_user == reset_token.id_user)
+    )
+    user = result_user.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User tidak ditemukan",
+        )
+
+    user.password = hash_password(data.password_baru)
+    db.add(user)
+
+    reset_token.used = True
+    db.add(reset_token)
+
+    await db.commit()
+
+    if user.email:
+        background_tasks.add_task(send_password_changed_notification, user, data.password_baru)
+
+    return ResetPasswordMessage(detail="Password berhasil diubah")
+
+
+## route reset password ke default (untukdevajaya) tanpa input user - khusus HR/Direktur
+@router.post("/reset-password", response_model=ResetPasswordMessage)
+async def reset_password(
+    data: ResetPasswordRequestById,
+    background_tasks: BackgroundTasks,
+    current_user: Annotated[User, Depends(require_role("hr_manager", "staff_hr", "direktur"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    result_user = await db.execute(
+        select(User).where(User.id_user == data.id_user)
+    )
+    user = result_user.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User tidak ditemukan",
+        )
+
+    password_default = "untukdevajaya"
+    user.password = hash_password(password_default)
+    db.add(user)
+
+    await db.commit()
+
+    if user.email:
+        background_tasks.add_task(send_password_changed_notification, user, password_default)
+
+    return ResetPasswordMessage(detail="Password berhasil direset ke default")
+
+
+## route halaman reset password (HTML)
+@router.get("/reset-password-page", response_class=HTMLResponse)
+async def reset_password_page(request: Request, token: str):
+    return templates.TemplateResponse(request, "reset_password.html", {"token": token})

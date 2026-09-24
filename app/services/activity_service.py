@@ -20,15 +20,25 @@ async def get_recent_activities(user_id: int, db: AsyncSession) -> list[Activity
     activities: list[ActivityOut] = []
 
     result_pengajuan = await db.execute(
-        select(LogCuti).where(LogCuti.id_user == user_id)
+        select(LogCuti)
+        .options(selectinload(LogCuti.tanggal_list))
+        .where(LogCuti.id_user == user_id)
     )
-    logs_pengajuan = result_pengajuan.scalars().all()
+    logs_pengajuan = result_pengajuan.scalars().unique().all()
 
     for log in logs_pengajuan:
+        if log.tanggal_pengajuan:
+            tanggal_aktivitas = log.tanggal_pengajuan
+        elif log.tanggal_list:
+            earliest = min(ld.tanggal for ld in log.tanggal_list)
+            tanggal_aktivitas = datetime.combine(earliest, datetime.min.time())
+        else:
+            tanggal_aktivitas = datetime.min
+
         activities.append(ActivityOut(
             jenis_aktivitas="pengajuan",
             keterangan=f"Mengajukan cuti {log.jenis_cuti}",
-            tanggal=log.tanggal_pengajuan or log.tanggal_mulai,
+            tanggal=tanggal_aktivitas,
         ))
 
     ## acc / decline (hanya pm via log_cuti_approval_pm)
@@ -72,9 +82,9 @@ async def get_recent_activities(user_id: int, db: AsyncSession) -> list[Activity
                 ))
 
     ## acc / decline (hr dan direktur)
-    if user.role in ("hr", "direktur", "staff_hr"):
+    if user.role in ("hr_manager", "direktur", "staff_hr"):
         match user.role:
-            case "hr":
+            case "hr_manager":
                 kolom_approve = LogCuti.diproses_hr
                 kolom_tanggal = LogCuti.processed_at_hr
                 status_acc = "disetujui_hr"

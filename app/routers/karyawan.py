@@ -22,7 +22,7 @@ router = APIRouter(prefix="/karyawan", tags=["Karyawan"])
 ## routes pengajuan cuti
 @router.post("/cuti", response_model=PengajuanCutiOut)
 async def submit_cuti(
-    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr_manager", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)],
     data: PengajuanCutiCreate,
     background_tasks: BackgroundTasks
@@ -34,7 +34,7 @@ async def submit_cuti(
 ## routes liat riwayat cuti all
 @router.get("/cuti", response_model=list[RiwayatCutiOut])
 async def get_all_cuti(
-    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr", "direktur", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr_manager", "direktur", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     
@@ -44,7 +44,7 @@ async def get_all_cuti(
 ## routes liat riwayat cuti yang ongoing (belum acc)
 @router.get("/cuti/ongoing", response_model=list[EmpDashboardPengajuanOngoingOut])
 async def get_all_cuti_ongoing(
-    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr", "direktur", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr_manager", "direktur", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
 
@@ -54,7 +54,7 @@ async def get_all_cuti_ongoing(
 ## routes liat ringkasan cuti dashboard
 @router.get("/cuti/ringkasan", response_model=EmpDashboardRingkasanOut)
 async def get_ringkasan_cuti(
-    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr", "direktur", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr_manager", "direktur", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
 
@@ -63,7 +63,7 @@ async def get_ringkasan_cuti(
 
 @router.get("/kalender-cuti-saya", response_model=list[CutiSayaOut])
 async def get_kalender(
-    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr_manager", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     
@@ -72,7 +72,7 @@ async def get_kalender(
 
 @router.get("/kalender-cuti-tim", response_model=list[CutiSayaOut])
 async def get_kalender_tim(
-    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr", "direktur", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr_manager", "direktur", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     
@@ -81,7 +81,7 @@ async def get_kalender_tim(
 
 @router.get("/activities", response_model=list[ActivityOut])
 async def get_activities_recent(
-    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr", "direktur", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr_manager", "direktur", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ): 
 
@@ -91,19 +91,19 @@ async def get_activities_recent(
 ## penambahan kerja
 @router.post("/penambahan-kerja", response_model=PenambahanKerjaOut)
 async def submit_penambahan_kerja(
-    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr_manager", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)],
     data: PenambahanKerjaCreate,
     background_tasks: BackgroundTasks
 ):
     
-    return await create_penambahan_kerja(current_user.id_user, data.tanggal_mulai, data.tanggal_selesai, data.keterangan, db, background_tasks)
+    return await create_penambahan_kerja(current_user.id_user, data.tanggal, data.keterangan, db, background_tasks)
 
 
 ## get pengajuan penambahan kerja
 @router.get("/penambahan-kerja", response_model=list[PenambahanKerjaOut])
 async def get_riwayat_penambahan_kerja(
-    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr_manager", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
 
@@ -114,7 +114,7 @@ async def get_riwayat_penambahan_kerja(
 @router.put("/cuti/{log_cuti_id}", response_model=PengajuanCutiOut)
 async def update_pengjuan_cuti(
     log_cuti_id: int, data: PengajuanCutiUpdate,
-    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("karyawan", "pm", "hr_manager", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)],
     background_tasks: BackgroundTasks
 ):

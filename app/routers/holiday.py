@@ -15,7 +15,7 @@ router = APIRouter(prefix="/holidays", tags=["Holidays"])
 
 @router.post("/sync")
 async def sync_holidays_endpoint(
-    current_user: Annotated[User, Depends(require_role("hr", "direktur", "staff_hr"))],
+    current_user: Annotated[User, Depends(require_role("hr_manager", "direktur", "staff_hr"))],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     year = date.today().year

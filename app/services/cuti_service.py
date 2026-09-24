@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.log_cuti import LogCuti
+from app.models.log_cuti_date import LogCutiDate
 from app.models.log_cuti_approval_pm import LogCutiApprovalPM
 from app.models.holiday import Holiday
 from app.models.user import User
@@ -21,18 +22,13 @@ FINAL_STATUSES = ["disetujui_hr", "disetujui_direktur", "cuti_bersama"]
 async def hitung_cuti_terpakai(user_id: int, db: AsyncSession) -> int:
     result = await db.execute(
         select(
-            func.coalesce(
-                func.sum(
-                    func.datediff(LogCuti.tanggal_selesai, LogCuti.tanggal_mulai) + 1
-                ),
-                0
-            )
-        ).where(
+            func.count(LogCutiDate.id)
+        ).join(LogCuti, LogCuti.id_log_cuti == LogCutiDate.id_log_cuti).where(
             LogCuti.id_user == user_id,
             LogCuti.status.in_(FINAL_STATUSES)
         )
     )
-    return result.scalar_one()
+    return result.scalar_one() or 0
 
 
 pengajuan_statuses = ["ditolak_pm", "ditolak_hr", "ditolak_direktur"]
@@ -48,8 +44,12 @@ async def create_pengajuan_cuti(data: PengajuanCutiOut, user_id: int, db: AsyncS
     if user.role == "direktur":
         raise HTTPException(status_code=400, detail="Direktur tidak bisa mengajukan cuti")
 
-    if data.tanggal_mulai < date.today():
-        raise HTTPException(status_code=400, detail="Tanggal cuti tidak boleh di masa lalu")
+    if not data.tanggal:
+        raise HTTPException(status_code=400, detail="Tanggal cuti harus diisi")
+
+    for t in data.tanggal:
+        if t < date.today():
+            raise HTTPException(status_code=400, detail="Tanggal cuti tidak boleh di masa lalu")
 
     aktif_statuses = ["menunggu_pm", "menunggu_hr", "menunggu_direktur"]
     existing = await db.execute(select(LogCuti).where(
@@ -59,20 +59,19 @@ async def create_pengajuan_cuti(data: PengajuanCutiOut, user_id: int, db: AsyncS
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Masih ada pengajuan cuti yang sedang diproses")
 
-    overlapping = await db.execute(select(LogCuti).where(
-        LogCuti.id_user == user_id, 
-        LogCuti.tanggal_mulai <= data.tanggal_selesai, 
-        LogCuti.tanggal_selesai >= data.tanggal_mulai,
-        LogCuti.status.notin_(pengajuan_statuses))
-    )
+    ## cek overlapping dengan log_cuti lain
+    for t in data.tanggal:
+        overlapping = await db.execute(
+            select(LogCutiDate.id).join(LogCuti, LogCuti.id_log_cuti == LogCutiDate.id_log_cuti).where(
+                LogCuti.id_user == user_id,
+                LogCutiDate.tanggal == t,
+                LogCuti.status.notin_(pengajuan_statuses)
+            )
+        )
+        if overlapping.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail=f"Tanggal {t} sudah pernah diambil atau tertumpang tindih!")
 
-    if overlapping.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Tanggal cuti sudah pernah diambil atau tertumpang tindih!")
-
-    durasi = (data.tanggal_selesai - data.tanggal_mulai).days + 1
-
-    if durasi <= 0:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tanggal tidak valid")
+    durasi = len(data.tanggal)
 
     if durasi > 4:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Maksimal cuti selama 4 hari")
@@ -110,17 +109,22 @@ async def create_pengajuan_cuti(data: PengajuanCutiOut, user_id: int, db: AsyncS
 
     status_pengajuan = get_ongoing_statuses(user)[0]
 
+    tanggal_sorted = sorted(data.tanggal)
+
     log = LogCuti(
         id_user=user_id,
         jenis_cuti="cuti tahunan",
-        tanggal_mulai=data.tanggal_mulai,
-        tanggal_selesai=data.tanggal_selesai,
         keterangan_cuti=data.keterangan_cuti,
         pengganti=data.pengganti,
         status=status_pengajuan,
     )
     db.add(log)
     await db.flush()
+
+    ## insert tanggal individual
+    for t in tanggal_sorted:
+        log_date = LogCutiDate(id_log_cuti=log.id_log_cuti, tanggal=t)
+        db.add(log_date)
 
     ## buat baris approval PM untuk setiap PM yang terdaftar
     if status_pengajuan == "menunggu_pm":
@@ -148,15 +152,15 @@ async def create_pengajuan_cuti(data: PengajuanCutiOut, user_id: int, db: AsyncS
             if pm:
                 background_tasks.add_task(
                     send_pengajuan_notification, user, pm, "cuti tahunan",
-                    data.tanggal_mulai, data.tanggal_selesai, data.keterangan_cuti
+                    tanggal_sorted, data.keterangan_cuti
                 )
     elif status_pengajuan == "menunggu_hr":
-        result_hr = await db.execute(select(User).where(User.role == "hr"))
+        result_hr = await db.execute(select(User).where(User.role == "hr_manager"))
         hr_users = result_hr.scalars().all()
         for hr_user in hr_users:
             background_tasks.add_task(
                 send_pengajuan_notification, user, hr_user, "cuti tahunan",
-                data.tanggal_mulai, data.tanggal_selesai, data.keterangan_cuti
+                tanggal_sorted, data.keterangan_cuti
             )
     elif status_pengajuan == "menunggu_direktur":
         result_dir = await db.execute(select(User).where(User.role == "direktur"))
@@ -164,10 +168,32 @@ async def create_pengajuan_cuti(data: PengajuanCutiOut, user_id: int, db: AsyncS
         for direktur in direktur_users:
             background_tasks.add_task(
                 send_pengajuan_notification, user, direktur, "cuti tahunan",
-                data.tanggal_mulai, data.tanggal_selesai, data.keterangan_cuti
-            )
+                    tanggal_sorted, data.keterangan_cuti
+                )
 
-    return log
+    ## load tanggal_list untuk response
+    result_dates = await db.execute(
+        select(LogCutiDate).where(LogCutiDate.id_log_cuti == log.id_log_cuti)
+    )
+    dates = sorted([d.tanggal for d in result_dates.scalars().all()])
+
+    return PengajuanCutiOut(
+        id_log_cuti=log.id_log_cuti,
+        id_user=log.id_user,
+        jenis_cuti=log.jenis_cuti,
+        tanggal=dates,
+        keterangan_cuti=log.keterangan_cuti,
+        durasi=len(dates),
+        status=log.status,
+        alasan_penolakan=log.alasan_penolakan,
+        diproses_hr=log.diproses_hr,
+        diproses_direktur=log.diproses_direktur,
+        processed_at_hr=log.processed_at_hr,
+        processed_at_direktur=log.processed_at_direktur,
+        edited_at=log.edited_at,
+        tanggal_pengajuan=log.tanggal_pengajuan,
+        approval_pm_detail=[],
+    )
 
 
 ## fugnsi get all cuti pribadi
@@ -176,7 +202,8 @@ async def get_my_cuti(user_id: int, db: AsyncSession, user: User = None) -> list
 
     result = await db.execute(
         select(LogCuti).options(
-            selectinload(LogCuti.approval_pm_list).selectinload(LogCutiApprovalPM.pm)
+            selectinload(LogCuti.approval_pm_list).selectinload(LogCutiApprovalPM.pm),
+            selectinload(LogCuti.tanggal_list),
         ).where(
             LogCuti.id_user == user_id,
             LogCuti.status.in_(finished_statuses),
@@ -203,11 +230,10 @@ async def get_my_cuti(user_id: int, db: AsyncSession, user: User = None) -> list
     return [
         RiwayatCutiOut(
             jenis_cuti=log.jenis_cuti,
-            tanggal_mulai=log.tanggal_mulai,
-            tanggal_selesai=log.tanggal_selesai,
+            tanggal=sorted([ld.tanggal for ld in log.tanggal_list]),
             nama_pengganti=map_pengganti.get(log.pengganti, "Tidak ada") if log.pengganti else "Tidak ada",
             keterangan_cuti=log.keterangan_cuti,
-            durasi=(log.tanggal_selesai - log.tanggal_mulai).days + 1,
+            durasi=len(log.tanggal_list),
             tanggal_pengajuan=log.tanggal_pengajuan,
             status=log.status,
             approval_pm_detail=[
@@ -276,11 +302,13 @@ async def get_my_ongoing_cuti(user_id: int, db: AsyncSession) -> list[EmpDashboa
     user = result_user.scalar_one()
 
     result = await db.execute(
-        select(LogCuti).where(
+        select(LogCuti).options(
+            selectinload(LogCuti.tanggal_list),
+        ).where(
             LogCuti.id_user == user_id,
         ).order_by(LogCuti.tanggal_pengajuan.desc())
     )
-    logs = result.scalars().all()
+    logs = result.scalars().unique().all()
 
     if not logs:
         
@@ -301,10 +329,9 @@ async def get_my_ongoing_cuti(user_id: int, db: AsyncSession) -> list[EmpDashboa
 
     return [EmpDashboardPengajuanOngoingOut(
         jenis_cuti=latest.jenis_cuti,
-        durasi=(latest.tanggal_selesai - latest.tanggal_mulai).days + 1,
+        durasi=len(latest.tanggal_list),
         keterangan_cuti=latest.keterangan_cuti,
-        tanggal_mulai=latest.tanggal_mulai,
-        tanggal_selesai=latest.tanggal_selesai,
+        tanggal=sorted([ld.tanggal for ld in latest.tanggal_list]),
         tanggal_pengajuan=latest.tanggal_pengajuan,
         status_sekarang=latest.status,
         approved_by_hr=nama_hr,
@@ -345,8 +372,12 @@ RESUBMIT_STATUSES = ["ditolak_pm", "ditolak_hr", "ditolak_direktur"]
 async def edit_pengajuan_cuti(
     log_cuti_id: int, user_id: int, data: PengajuanCutiUpdate, db: AsyncSession, background_tasks: BackgroundTasks
 ) -> LogCuti:
-    result = await db.execute(select(LogCuti).where(
-        LogCuti.id_log_cuti == log_cuti_id, LogCuti.id_user == user_id)
+    result = await db.execute(
+        select(LogCuti).options(
+            selectinload(LogCuti.tanggal_list),
+        ).where(
+            LogCuti.id_log_cuti == log_cuti_id, LogCuti.id_user == user_id
+        )
     )
     log = result.scalar_one_or_none()
 
@@ -362,27 +393,30 @@ async def edit_pengajuan_cuti(
     if not user:
         raise HTTPException(status_code=404, detail="User tidak ditemukan")
 
-    new_tanggal_mulai = data.tanggal_mulai if data.tanggal_mulai is not None else log.tanggal_mulai
-    new_tanggal_selesai = data.tanggal_selesai if data.tanggal_selesai is not None else log.tanggal_selesai
+    new_tanggal = data.tanggal if data.tanggal is not None else sorted([ld.tanggal for ld in log.tanggal_list])
     new_pengganti = data.pengganti
     new_keterangan = data.keterangan_cuti if data.keterangan_cuti is not None else log.keterangan_cuti
 
-    if new_tanggal_mulai < date.today():
-        raise HTTPException(status_code=400, detail="Tanggal tidak boleh di masa lalu!")
+    for t in new_tanggal:
+        if t < date.today():
+            raise HTTPException(status_code=400, detail="Tanggal tidak boleh di masa lalu!")
 
-    durasi = (new_tanggal_selesai - new_tanggal_mulai).days + 1
-    if durasi <= 0:
-        raise HTTPException(status_code=400, detail="Tanggal tidak valid!")
-
+    durasi = len(new_tanggal)
     if durasi > 4:
-        raise HTTPException(status_code=400, detail="Tanggal cuti selama 4 hari")
+        raise HTTPException(status_code=400, detail="Maksimal cuti selama 4 hari")
 
-    overlapping = await db.execute(select(LogCuti).where(
-        LogCuti.id_user == user_id, LogCuti.id_log_cuti != log_cuti_id, LogCuti.tanggal_mulai <= new_tanggal_selesai,
-        LogCuti.tanggal_selesai >= new_tanggal_mulai, LogCuti.status.notin_(pengajuan_statuses))
-    )
-    if overlapping.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Tanggal cuti sudah pernah diambil atau tertumpang tindih!")
+    ## cek overlapping
+    for t in new_tanggal:
+        overlapping = await db.execute(
+            select(LogCutiDate.id).join(LogCuti, LogCuti.id_log_cuti == LogCutiDate.id_log_cuti).where(
+                LogCuti.id_user == user_id,
+                LogCuti.id_log_cuti != log_cuti_id,
+                LogCutiDate.tanggal == t,
+                LogCuti.status.notin_(pengajuan_statuses)
+            )
+        )
+        if overlapping.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail=f"Tanggal {t} sudah pernah diambil atau tertumpang tindih!")
 
     next_holiday_days = await get_next_pending_holiday_days(db)
 
@@ -411,8 +445,16 @@ async def edit_pengajuan_cuti(
         if not pengganti_user.scalar_one_or_none():
             raise HTTPException(status_code=400, detail="User pengganti tidak ditemukan")
 
-    log.tanggal_mulai = new_tanggal_mulai
-    log.tanggal_selesai = new_tanggal_selesai
+    tanggal_sorted = sorted(new_tanggal)
+
+    ## hapus tanggal lama dan ganti baru
+    for old_date in log.tanggal_list:
+        await db.delete(old_date)
+
+    for t in tanggal_sorted:
+        new_date = LogCutiDate(id_log_cuti=log.id_log_cuti, tanggal=t)
+        db.add(new_date)
+
     log.pengganti = new_pengganti
     log.keterangan_cuti = new_keterangan
     log.edited_at = datetime.now()
@@ -462,15 +504,15 @@ async def edit_pengajuan_cuti(
                 if pm:
                     background_tasks.add_task(
                         send_pengajuan_notification, user, pm, "cuti tahunan",
-                        log.tanggal_mulai, log.tanggal_selesai, log.keterangan_cuti
+                        tanggal_sorted, log.keterangan_cuti
                     )
         elif log.status == "menunggu_hr":
-            result_hr = await db.execute(select(User).where(User.role == "hr"))
+            result_hr = await db.execute(select(User).where(User.role == "hr_manager"))
             hr_users = result_hr.scalars().all()
             for hr_user in hr_users:
                 background_tasks.add_task(
                     send_pengajuan_notification, user, hr_user, "cuti tahunan",
-                    log.tanggal_mulai, log.tanggal_selesai, log.keterangan_cuti
+                    tanggal_sorted, log.keterangan_cuti
                 )
         elif log.status == "menunggu_direktur":
             result_dir = await db.execute(select(User).where(User.role == "direktur"))
@@ -478,7 +520,29 @@ async def edit_pengajuan_cuti(
             for direktur in direktur_users:
                 background_tasks.add_task(
                     send_pengajuan_notification, user, direktur, "cuti tahunan",
-                    log.tanggal_mulai, log.tanggal_selesai, log.keterangan_cuti
+                    tanggal_sorted, log.keterangan_cuti
                 )
 
-    return log
+    ## load tanggal_list untuk response
+    result_dates = await db.execute(
+        select(LogCutiDate).where(LogCutiDate.id_log_cuti == log.id_log_cuti)
+    )
+    dates = sorted([d.tanggal for d in result_dates.scalars().all()])
+
+    return PengajuanCutiOut(
+        id_log_cuti=log.id_log_cuti,
+        id_user=log.id_user,
+        jenis_cuti=log.jenis_cuti,
+        tanggal=dates,
+        keterangan_cuti=log.keterangan_cuti,
+        durasi=len(dates),
+        status=log.status,
+        alasan_penolakan=log.alasan_penolakan,
+        diproses_hr=log.diproses_hr,
+        diproses_direktur=log.diproses_direktur,
+        processed_at_hr=log.processed_at_hr,
+        processed_at_direktur=log.processed_at_direktur,
+        edited_at=log.edited_at,
+        tanggal_pengajuan=log.tanggal_pengajuan,
+        approval_pm_detail=[],
+    )

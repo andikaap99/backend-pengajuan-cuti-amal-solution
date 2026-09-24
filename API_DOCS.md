@@ -265,18 +265,16 @@ Authorization: Bearer <token>
 **Request Body (JSON):**
 ```json
 {
-  "tanggal_mulai": "2026-08-20",
-  "tanggal_selesai": "2026-08-22",
-  "keterangan": "Libur keluarga",
+  "tanggal": ["2026-08-20", "2026-08-21", "2026-08-22"],
+  "keterangan_cuti": "Libur keluarga",
   "pengganti": 3
 }
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| tanggal_mulai | date | Ya | Tanggal mulai cuti (YYYY-MM-DD) |
-| tanggal_selesai | date | Ya | Tanggal selesai cuti (YYYY-MM-DD) |
-| keterangan | string | Ya | Keterangan/surat izin cuti |
+| tanggal | list[date] | Ya | Daftar tanggal cuti (array YYYY-MM-DD, boleh tidak berurutan) |
+| keterangan_cuti | string | Ya | Keterangan/surat izin cuti |
 | pengganti | int | Tidak | ID user pengganti (nullable) |
 
 **Response 200:**
@@ -285,8 +283,7 @@ Authorization: Bearer <token>
   "id_log_cuti": 1,
   "id_user": 1,
   "jenis_cuti": "cuti tahunan",
-  "tanggal_mulai": "2026-08-20",
-  "tanggal_selesai": "2026-08-22",
+  "tanggal": ["2026-08-20", "2026-08-22"],
   "keterangan_cuti": "Libur keluarga",
   "status": "menunggu_pm",
   "alasan_penolakan": null,
@@ -379,8 +376,7 @@ Authorization: Bearer <token>
 [
   {
     "jenis_cuti": "cuti tahunan",
-    "tanggal_mulai": "2026-08-20",
-    "tanggal_selesai": "2026-08-22",
+    "tanggal": ["2026-08-20", "2026-08-22"],
     "keterangan": "Libur keluarga",
     "nama_pengganti": "Budi Santoso",
     "durasi": 3,
@@ -388,8 +384,7 @@ Authorization: Bearer <token>
   },
   {
     "jenis_cuti": "cuti tahunan",
-    "tanggal_mulai": "2026-07-10",
-    "tanggal_selesai": "2026-07-11",
+    "tanggal": ["2026-07-10", "2026-07-11"],
     "keterangan": "Sakit flu",
     "nama_pengganti": "Andi Wijaya",
     "durasi": 2,
@@ -410,7 +405,7 @@ Melihat semua cuti yang masih dalam proses (belum selesai/ditolak).
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** karyawan, hr, pm
+**Role Akses:** karyawan, hr_manager, pm
 
 **Response 200:**
 ```json
@@ -419,8 +414,7 @@ Authorization: Bearer <token>
     "jenis_cuti": "cuti tahunan",
     "durasi": 3,
     "keterangan": "Libur keluarga",
-    "tanggal_mulai": "2026-08-20",
-    "tanggal_selesai": "2026-08-22",
+    "tanggal": ["2026-08-20", "2026-08-22"],
     "status_sekarang": "menunggu_hr",
     "disetujui_hr": null,
     "disetujui_direktur": null,
@@ -436,8 +430,7 @@ Authorization: Bearer <token>
 | jenis_cuti | string | Jenis cuti (selalu "cuti tahunan") |
 | durasi | int | Durasi cuti dalam hari |
 | keterangan | string | Keterangan cuti |
-| tanggal_mulai | date | Tanggal mulai cuti |
-| tanggal_selesai | date | Tanggal selesai cuti |
+| tanggal | list[date] | Tanggal mulai cuti | Daftar tanggal (array YYYY-MM-DD, boleh tidak berurutan) |
 | status_sekarang | string | Status pengajuan saat ini |
 | disetujui_hr | int \| null | ID HR yang menyetujui (null jika belum) |
 | disetujui_direktur | int \| null | ID Direktur yang menyetujui (null jika belum) |
@@ -457,7 +450,7 @@ Melihat ringkasan cuti untuk dashboard karyawan.
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** karyawan, pm, hr
+**Role Akses:** karyawan, pm, hr_manager
 
 **Response 200:**
 ```json
@@ -488,7 +481,7 @@ Melihat kalender cuti pribadi (data per hari).
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** karyawan, pm, hr
+**Role Akses:** karyawan, pm, hr_manager
 
 **Response 200:**
 ```json
@@ -532,7 +525,7 @@ Melihat kalender cuti seluruh anggota tim (data per hari).
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** karyawan, pm, hr
+**Role Akses:** karyawan, pm, hr_manager
 
 **Response 200:**
 ```json
@@ -574,7 +567,7 @@ Melihat 3 aktivitas terbaru (pengajuan, persetujuan, penolakan).
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** karyawan, pm, hr, direktur
+**Role Akses:** karyawan, pm, hr_manager, direktur
 
 **Response 200:**
 ```json
@@ -604,29 +597,27 @@ Mengajukan penambahan kerja di hari cuti bersama.
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** karyawan, pm, hr, staff_hr
+**Role Akses:** karyawan, pm, hr_manager, staff_hr
 
 **Flow Approval (sama dengan cuti):**
 | Role Pengaju | Flow |
 |---|---|
 | Karyawan dept≠1 | menunggu_pm → menunggu_hr → disetujui_hr |
-| Karyawan dept=1 / PM | menunggu_hr → disetujui_hr |
-| HR / staff_hr | menunggu_hr → menunggu_direktur → disetujui_hr |
+| Karyawan dept=1 / PM / staff_hr | menunggu_hr → disetujui_hr |
+| hr_manager | menunggu_direktur → disetujui_direktur |
 | Direktur | ❌ Tidak boleh mengajukan |
 
 **Request Body (JSON):**
 ```json
 {
-  "tanggal_mulai": "2026-03-20",
-  "tanggal_selesai": "2026-03-21",
+  "tanggal": ["2026-03-20", "2026-03-21"],
   "keterangan": "Project deadline"
 }
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| tanggal_mulai | date | Ya | Tanggal mulai kerja |
-| tanggal_selesai | date | Ya | Tanggal selesai kerja |
+| tanggal | list[date] | Ya | Daftar tanggal kerja (array YYYY-MM-DD, boleh tidak berurutan) |
 | keterangan | string | Ya | Keterangan/alasan |
 
 **Response 200:**
@@ -634,8 +625,7 @@ Authorization: Bearer <token>
 {
   "id_pengajuan_kerja": 1,
   "id_user": 7,
-  "tanggal_mulai": "2026-03-20",
-  "tanggal_selesai": "2026-03-21",
+  "tanggal": ["2026-03-20", "2026-03-21"],
   "keterangan_pengajuan": "Project deadline",
   "status": "menunggu_pm"
 }
@@ -660,7 +650,7 @@ Melihat riwayat pengajuan penambahan kerja milik user (yang sudah selesai/disetu
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** karyawan, pm, hr, staff_hr, direktur
+**Role Akses:** karyawan, pm, hr_manager, staff_hr, direktur
 
 **Response 200:**
 ```json
@@ -668,8 +658,7 @@ Authorization: Bearer <token>
   {
     "id_pengajuan_kerja": 1,
     "id_user": 7,
-    "tanggal_mulai": "2026-03-20",
-    "tanggal_selesai": "2026-03-21",
+    "tanggal": ["2026-03-20", "2026-03-21"],
     "keterangan_pengajuan": "Project deadline",
     "status": "disetujui_pm"
   }
@@ -690,7 +679,7 @@ Mendapatkan daftar pengajuan cuti yang menunggu persetujuan (berdasarkan role).
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** pm, hr, direktur
+**Role Akses:** pm, hr_manager, direktur
 
 **Response 200:**
 ```json
@@ -700,8 +689,7 @@ Authorization: Bearer <token>
     "nama": "Rizza Alyda Yahya",
     "nama_departemen": "Marketing",
     "jenis_cuti": "cuti tahunan",
-    "tanggal_mulai": "2026-09-01",
-    "tanggal_selesai": "2026-09-03",
+    "tanggal": ["2026-09-01", "2026-09-03"],
     "durasi": 3,
     "pengganti": "Rissa",
     "sisa_cuti": 8,
@@ -716,8 +704,7 @@ Authorization: Bearer <token>
 | nama | string | Nama pemohon |
 | nama_departemen | string | Departemen pemohon |
 | jenis_cuti | string | Jenis cuti |
-| tanggal_mulai | date | Tanggal mulai cuti |
-| tanggal_selesai | date | Tanggal selesai cuti |
+| tanggal | list[date] | Tanggal mulai cuti | Daftar tanggal (array YYYY-MM-DD, boleh tidak berurutan) |
 | durasi | int | Durasi cuti dalam hari |
 | pengganti | string | Nama pengganti (atau "Tidak ada") |
 | sisa_cuti | int | Sisa cuti pemohon |
@@ -735,7 +722,7 @@ Menyetujui atau menolak pengajuan cuti.
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** pm, hr, direktur
+**Role Akses:** pm, hr_manager, direktur
 
 **Request Body (JSON):**
 ```json
@@ -792,7 +779,7 @@ Mendapatkan detail persetujuan PM untuk pengajuan cuti tertentu (siapa PM yang s
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** pm, hr, direktur
+**Role Akses:** pm, hr_manager, direktur
 
 **Path Parameters:**
 | Param | Type | Description |
@@ -840,13 +827,14 @@ Authorization: Bearer <token>
 **GET** `/approval/penambahan-kerja-queue`
 
 Mendapatkan daftar pengajuan penambahan kerja yang menunggu persetujuan (PM, HR, atau Direktur).
+Untuk role HR/Direktur: pengajuan milik diri sendiri tidak ditampilkan (sama seperti queue cuti).
 
 **Headers:**
 ```
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** pm, hr, staff_hr, direktur
+**Role Akses:** pm, hr_manager, staff_hr, direktur
 
 **Response 200:**
 ```json
@@ -855,8 +843,7 @@ Authorization: Bearer <token>
     "id_pengajuan_kerja": 1,
     "nama": "Rissa",
     "nama_departemen": "Design",
-    "tanggal_mulai": "2026-03-20",
-    "tanggal_selesai": "2026-03-21",
+    "tanggal": ["2026-03-20", "2026-03-21"],
     "keterangan": "Project deadline",
     "status": "menunggu_pm",
     "approval_pm_detail": []
@@ -876,13 +863,13 @@ Menyetujui atau menolak pengajuan penambahan kerja.
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** pm, hr, staff_hr, direktur
+**Role Akses:** pm, hr_manager, staff_hr, direktur
 
 **Flow:**
 - PM approve → `menunggu_hr`
-- HR approve (submitter karyawan) → `disetujui_hr` (FINAL)
-- HR approve (submitter hr/staff_hr) → `menunggu_direktur`
-- Direktur approve → `disetujui_hr` (FINAL)
+- HR approve (submitter karyawan/staff_hr) → `disetujui_hr` (FINAL)
+- Direktur approve (submitter hr_manager) → `disetujui_direktur` (FINAL)
+- Approver tidak bisa memproses pengajuan sendiri (error 400); pengajuan sendiri tidak muncul di queue
 
 **Request Body (JSON):**
 ```json
@@ -917,7 +904,7 @@ Mendapatkan detail persetujuan PM untuk pengajuan penambahan kerja tertentu.
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** pm, hr, direktur
+**Role Akses:** pm, hr_manager, direktur
 
 **Path Parameters:**
 | Param | Type | Description |
@@ -960,7 +947,7 @@ Mendapatkan daftar semua Project Manager.
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** hr, direktur
+**Role Akses:** hr_manager, direktur
 
 **Response 200:**
 ```json
@@ -1028,8 +1015,7 @@ Authorization: Bearer <token>
     "nama": "John Doe",
     "nama_departemen": "Engineering",
     "jenis_cuti": "cuti tahunan",
-    "tanggal_mulai": "2026-08-20",
-    "tanggal_selesai": "2026-08-22",
+    "tanggal": ["2026-08-20", "2026-08-22"],
     "durasi": 3,
     "pengganti": "Budi Santoso",
     "sisa_cuti": 9,
@@ -1043,8 +1029,7 @@ Authorization: Bearer <token>
 | nama | string | Nama karyawan yang mengajukan |
 | nama_departemen | string | Nama departemen karyawan |
 | jenis_cuti | string | Jenis cuti |
-| tanggal_mulai | date | Tanggal mulai cuti |
-| tanggal_selesai | date | Tanggal selesai cuti |
+| tanggal | list[date] | Tanggal mulai cuti | Daftar tanggal (array YYYY-MM-DD, boleh tidak berurutan) |
 | durasi | int | Durasi cuti dalam hari |
 | pengganti | string | Nama pengganti (atau "Tidak ada") |
 | sisa_cuti | int | Sisa jatah cuti karyawan |
@@ -1105,8 +1090,7 @@ Authorization: Bearer <token>
   {
     "nama": "John Doe",
     "jenis_cuti": "cuti tahunan",
-    "tanggal_mulai": "2026-08-20",
-    "tanggal_selesai": "2026-08-22",
+    "tanggal": ["2026-08-20", "2026-08-22"],
     "status": "menunggu_pm"
   }
 ]
@@ -1116,8 +1100,7 @@ Authorization: Bearer <token>
 |-------|------|-------------|
 | nama | string | Nama anggota tim |
 | jenis_cuti | string | Jenis cuti |
-| tanggal_mulai | date | Tanggal mulai cuti |
-| tanggal_selesai | date | Tanggal selesai cuti |
+| tanggal | list[date] | Tanggal mulai cuti | Daftar tanggal (array YYYY-MM-DD, boleh tidak berurutan) |
 | status | string | Status pengajuan saat ini |
 
 ---
@@ -1138,8 +1121,7 @@ Authorization: Bearer <token>
 ```json
 [
   {
-    "tanggal_mulai": "2026-08-20",
-    "tanggal_selesai": "2026-08-22",
+    "tanggal": ["2026-08-20", "2026-08-22"],
     "nama": "John Doe",
     "jenis_cuti": "cuti tahunan",
     "keterangan": "Libur keluarga",
@@ -1152,8 +1134,7 @@ Authorization: Bearer <token>
 
 | Field | Type | Description |
 |-------|------|-------------|
-| tanggal_mulai | date | Tanggal mulai cuti |
-| tanggal_selesai | date | Tanggal selesai cuti |
+| tanggal | list[date] | Tanggal mulai cuti | Daftar tanggal (array YYYY-MM-DD, boleh tidak berurutan) |
 | nama | string | Nama karyawan yang mengajukan |
 | jenis_cuti | string | Jenis cuti |
 | keterangan | string | Keterangan/alasan cuti |
@@ -1237,7 +1218,7 @@ Mendapatkan daftar semua HR.
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** hr, direktur
+**Role Akses:** hr_manager, direktur
 
 **Response 200:**
 ```json
@@ -1265,7 +1246,7 @@ Mendapatkan ringkasan dashboard HR (total karyawan, menunggu HR, cuti bulan ini,
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** hr
+**Role Akses:** hr_manager
 
 **Response 200:**
 ```json
@@ -1296,7 +1277,7 @@ Mendapatkan daftar cuti karyawan yang akan datang (tanggal mulai >= hari ini).
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** hr
+**Role Akses:** hr_manager
 
 **Response 200:**
 ```json
@@ -1304,8 +1285,7 @@ Authorization: Bearer <token>
   {
     "nama": "Budi Santoso",
     "jenis_cuti": "cuti tahunan",
-    "tanggal_mulai": "2026-08-25",
-    "tanggal_selesai": "2026-08-28",
+    "tanggal": ["2026-08-25", "2026-08-28"],
     "status": "menunggu_hr"
   }
 ]
@@ -1315,8 +1295,7 @@ Authorization: Bearer <token>
 |-------|------|-------------|
 | nama | string | Nama karyawan |
 | jenis_cuti | string | Jenis cuti |
-| tanggal_mulai | date | Tanggal mulai cuti |
-| tanggal_selesai | date | Tanggal selesai cuti |
+| tanggal | list[date] | Tanggal mulai cuti | Daftar tanggal (array YYYY-MM-DD, boleh tidak berurutan) |
 | status | string | Status pengajuan saat ini |
 
 ---
@@ -1331,7 +1310,7 @@ Mendapatkan ringkasan persetujuan cuti (total menunggu, disetujui bulan ini, dit
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** hr
+**Role Akses:** hr_manager
 
 **Response 200:**
 ```json
@@ -1360,7 +1339,7 @@ Mendapatkan rekapitulasi cuti karyawan yang sedang berjalan (sudah disetujui dir
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** hr
+**Role Akses:** hr_manager
 
 **Response 200:**
 ```json
@@ -1368,8 +1347,7 @@ Authorization: Bearer <token>
   {
     "nama": "Budi Santoso",
     "departemen": "Engineering",
-    "tanggal_mulai": "2026-08-20",
-    "tanggal_selesai": "2026-08-22",
+    "tanggal": ["2026-08-20", "2026-08-22"],
     "total_cuti": 12,
     "sisa_cuti": 7
   }
@@ -1380,8 +1358,7 @@ Authorization: Bearer <token>
 |-------|------|-------------|
 | nama | string | Nama karyawan |
 | departemen | string | Nama departemen |
-| tanggal_mulai | date | Tanggal mulai cuti |
-| tanggal_selesai | date | Tanggal selesai cuti |
+| tanggal | list[date] | Tanggal mulai cuti | Daftar tanggal (array YYYY-MM-DD, boleh tidak berurutan) |
 | total_cuti | int | Total jatah cuti |
 | sisa_cuti | int | Sisa jatah cuti |
 
@@ -1397,15 +1374,14 @@ Mendapatkan log seluruh pengajuan cuti (semua status).
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** hr
+**Role Akses:** hr_manager
 
 **Response 200:**
 ```json
 [
   {
     "nama": "Budi Santoso",
-    "tanggal_mulai": "2026-08-20",
-    "tanggal_selesai": "2026-08-22",
+    "tanggal": ["2026-08-20", "2026-08-22"],
     "durasi": 3,
     "jenis_cuti": "cuti tahunan",
     "keterangan": "Cuti keluarga",
@@ -1419,8 +1395,7 @@ Authorization: Bearer <token>
 | Field | Type | Description |
 |-------|------|-------------|
 | nama | string | Nama karyawan |
-| tanggal_mulai | date | Tanggal mulai cuti |
-| tanggal_selesai | date | Tanggal selesai cuti |
+| tanggal | list[date] | Tanggal mulai cuti | Daftar tanggal (array YYYY-MM-DD, boleh tidak berurutan) |
 | durasi | int | Durasi cuti dalam hari |
 | jenis_cuti | string | Jenis cuti |
 | keterangan | string | Keterangan cuti |
@@ -1440,15 +1415,14 @@ Mendapatkan log seluruh pengajuan penambahan kerja (semua status).
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** hr, direktur, staff_hr
+**Role Akses:** hr_manager, direktur, staff_hr
 
 **Response 200:**
 ```json
 [
   {
     "nama": "Rissa",
-    "tanggal_mulai": "2026-03-20",
-    "tanggal_selesai": "2026-03-21",
+    "tanggal": ["2026-03-20", "2026-03-21"],
     "durasi": 2,
     "keterangan": "Project deadline mendesak",
     "tanggal_pengajuan": "2026-03-19T10:00:00",
@@ -1460,8 +1434,7 @@ Authorization: Bearer <token>
 | Field | Type | Description |
 |-------|------|-------------|
 | nama | string | Nama karyawan |
-| tanggal_mulai | date | Tanggal mulai kerja |
-| tanggal_selesai | date | Tanggal selesai kerja |
+| tanggal | list[date] | Tanggal mulai kerja | Daftar tanggal (array YYYY-MM-DD, boleh tidak berurutan) |
 | durasi | int | Durasi dalam hari |
 | keterangan | string | Keterangan pengajuan |
 | tanggal_pengajuan | datetime | Waktu pengajuan dibuat |
@@ -1479,7 +1452,7 @@ Mendapatkan rekapitulasi pengajuan penambahan kerja per karyawan.
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** hr, direktur, staff_hr
+**Role Akses:** hr_manager, direktur, staff_hr
 
 **Response 200:**
 ```json
@@ -1499,8 +1472,8 @@ Authorization: Bearer <token>
 | nama | string | Nama karyawan |
 | nama_departemen | string | Nama departemen |
 | total_pengajuan | int | Total pengajuan (semua status) |
-| disetujui | int | Jumlah pengajuan yang disetujui final |
-| ditolak | int | Jumlah pengajuan yang ditolak (PM atau HR) |
+| disetujui | int | Jumlah pengajuan yang disetujui final (`disetujui_hr` / `disetujui_direktur` / legacy `disetujui_pm`) |
+| ditolak | int | Jumlah pengajuan yang ditolak (PM, HR, atau Direktur) |
 
 ---
 
@@ -1514,7 +1487,7 @@ Mendapatkan ringkasan data karyawan (total karyawan, total departemen, total PM)
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** hr
+**Role Akses:** hr_manager
 
 **Response 200:**
 ```json
@@ -1543,7 +1516,7 @@ Mendapatkan daftar seluruh karyawan dalam bentuk tabel.
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** hr
+**Role Akses:** hr_manager
 
 **Response 200:**
 ```json
@@ -1582,7 +1555,7 @@ Mendapatkan daftar seluruh departemen beserta jumlah karyawan di masing-masing.
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** hr
+**Role Akses:** hr_manager
 
 **Response 200:**
 ```json
@@ -1611,7 +1584,7 @@ Mendapatkan ringkasan manajemen jatah cuti (total karyawan aktif dan sedang cuti
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** hr
+**Role Akses:** hr_manager
 
 **Response 200:**
 ```json
@@ -1638,7 +1611,7 @@ Mendapatkan daftar jatah cuti seluruh karyawan (total, terpakai, sisa).
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** hr
+**Role Akses:** hr_manager
 
 **Response 200:**
 ```json
@@ -1673,7 +1646,7 @@ Mendownload rekap cuti dalam format Excel (.xlsx).
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** hr, direktur
+**Role Akses:** hr_manager, direktur
 
 **Query Parameters:**
 | Param | Type | Required | Description |
@@ -1685,44 +1658,48 @@ File `.xlsx` dengan Content-Type `application/vnd.openxmlformats-officedocument.
 
 ---
 
-### 16. Tambah Sisa Cuti
+### 16. Tambah/Kurangi Sisa Cuti
 **POST** `/hr/tambah-cuti`
 
-Menambah jatah cuti karyawan (HR/Direktur).
+Menambah atau mengurangi jatah cuti untuk semua user sekaligus (HR/Direktur). Nilai positif = tambah, negatif = kurangi.
 
 **Headers:**
 ```
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** hr, direktur
+**Role Akses:** hr_manager, direktur, staff_hr
 
 **Request Body (JSON):**
 ```json
 {
-  "id_user": 4,
-  "jumlah_hari": 2,
-  "keterangan": "Reward performa"
+  "jumlah_hari": -2,
+  "keterangan": "Koreksi penambahan salah input"
 }
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| id_user | int | Ya | ID karyawan |
-| jumlah_hari | int | Ya | Jumlah hari yang ditambahkan |
-| keterangan | string | Ya | Keterangan penambahan |
+| jumlah_hari | int | Ya | Positif = tambah, negatif = kurangi (tidak boleh 0) |
+| keterangan | string | Ya | Keterangan perubahan |
 
-**Response 200:**
+**Validasi:**
+- `jumlah_hari` tidak boleh 0
+- Jika negatif: `total_cuti` hasil akhir tiap user harus ≥ 12 (jatah dasar negara tidak boleh dikurangi), dan tidak boleh membuat `sisa_cuti` user menjadi negatif
+
+**Response 200:** (list log per user)
 ```json
-{
-  "id_log_cuti_ekstra": 1,
-  "id_user": 4,
-  "id_penambah": 2,
-  "jumlah_hari": 2,
-  "keterangan": "Reward performa",
-  "added_at": "2026-09-01",
-  "tahun": 2026
-}
+[
+  {
+    "id_log_cuti_ekstra": 1,
+    "id_user": 4,
+    "id_penambah": 2,
+    "jumlah_hari": -2,
+    "keterangan": "Koreksi penambahan salah input",
+    "added_at": "2026-09-22",
+    "tahun": 2026
+  }
+]
 ```
 
 ---
@@ -1737,7 +1714,7 @@ Mengupdate data karyawan (semua field optional).
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** hr, direktur
+**Role Akses:** hr_manager, direktur
 
 **Path Parameters:**
 | Param | Type | Description |
@@ -1816,7 +1793,7 @@ Membuat departemen baru.
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** hr, direktur
+**Role Akses:** hr_manager, direktur
 
 **Request Body (JSON):**
 ```json
@@ -1856,7 +1833,7 @@ Mengupdate nama departemen.
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** hr, direktur
+**Role Akses:** hr_manager, direktur
 
 **Request Body (JSON):**
 ```json
@@ -1924,7 +1901,7 @@ Sinkronisasi data libur nasional dan cuti bersama dari API Kemendesa ke database
 Authorization: Bearer <token>
 ```
 
-**Role Akses:** hr, direktur
+**Role Akses:** hr_manager, direktur
 
 **Response 200:**
 ```json
@@ -2069,7 +2046,7 @@ Menyimpan persetujuan PM per pengajuan cuti.
 |-------|------|-------------|
 | id_log_cuti | int | ID log cuti |
 | id_pm | int | ID PM |
-| status | string | Status: menunggu_pm, disetujui_pm, ditolak_pm |
+| status | string | Status: menunggu, disetujui, ditolak |
 | processed_at | datetime \| null | Timestamp persetujuan/penolakan |
 
 #### log_penambahan_kerja_approval_pm
@@ -2113,8 +2090,8 @@ Robert Approve:
 |------|-----------|---------------------|-------------------------------|
 | karyawan | Karyawan biasa, bisa ajukan cuti & penambahan kerja | Dept 2&3: PM→HR, Dept 1: HR | Dept 2&3: PM→HR, Dept 1: HR |
 | pm | Project Manager, approve cuti karyawan | HR | HR |
-| hr | HR, approve cuti | Direktur | Direktur (jika submitter HR) |
-| staff_hr | Staff HR, approve cuti | Direktur | Direktur (jika submitter staff_hr) |
+| hr_manager | HR Manager, approve cuti | Direktur (jika submitter hr_manager) | HR; jika submitter → Direktur |
+| staff_hr | Staff HR, approve cuti | HR (final `disetujui_hr`) | HR (final `disetujui_hr`) |
 | direktur | Direktur, approve cuti & penambahan kerja final | Tidak bisa ajukan cuti | Tidak bisa ajukan penambahan kerja |
 
 ---
@@ -2129,20 +2106,17 @@ menunggu_pm → disetujui_pm / ditolak_pm
 menunggu_hr → disetujui_hr / ditolak_hr (SELESAI)
 ```
 
-**Karyawan Dept 1 / PM:**
+**Karyawan Dept 1 / PM / Staff HR:**
 ```
 menunggu_hr → disetujui_hr / ditolak_hr (SELESAI)
 ```
 
-**HR / Staff HR:**
+**HR Manager (sebagai pemohon; di-approve Direktur):**
 ```
-menunggu_hr → menunggu_direktur → disetujui_hr / ditolak_hr (SELESAI)
+menunggu_direktur → disetujui_direktur / ditolak_direktur (SELESAI)
 ```
 
-**Direktur (approve dari HR):**
-```
-menunggu_direktur → disetujui_hr / ditolak_hr (SELESAI)
-```
+Catatan penambahan kerja (sama dengan cuti): approver tidak bisa memproses pengajuan sendiri (400), dan pengajuan sendiri tidak muncul di queue HR/Direktur.
 
 ---
 

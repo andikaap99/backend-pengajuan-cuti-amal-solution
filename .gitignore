@@ -38,3 +38,10 @@ progress.md
 seed_*.py
 seed_demo.py
 seeder.py
+seeder_data_karyawan.py
+
+# Testing
+.pytest_cache/
+
+# Screenshots (not for repo)
+*.png

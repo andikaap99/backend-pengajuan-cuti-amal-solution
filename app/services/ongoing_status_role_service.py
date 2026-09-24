@@ -14,7 +14,7 @@ def get_ongoing_statuses(user: User) -> list[str]:
                 return ["menunggu_hr"]
         case "pm":
             return ["menunggu_hr"]
-        case "hr":
+        case "hr_manager":
             return ["menunggu_direktur"]
         case "staff_hr":
             return ["menunggu_hr"]
@@ -32,7 +32,7 @@ def get_rejected_statuses(user: User) -> list[str]:
                 return ["ditolak_hr"]
         case "pm":
             return ["ditolak_hr"]
-        case "hr":
+        case "hr_manager":
             return ["ditolak_direktur"]
         case "staff_hr":
             return ["ditolak_hr"]
@@ -50,7 +50,7 @@ def get_finished_statuses(user: User) -> list[str]:
                 return ["disetujui_hr", "ditolak_hr", "cuti_bersama"]
         case "pm":
             return ["disetujui_hr", "ditolak_hr", "cuti_bersama"]
-        case "hr":
+        case "hr_manager":
             return ["disetujui_direktur", "ditolak_direktur", "cuti_bersama"]
         case "staff_hr":
             return ["disetujui_hr", "ditolak_hr", "cuti_bersama"]

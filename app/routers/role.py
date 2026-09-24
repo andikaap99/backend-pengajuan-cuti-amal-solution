@@ -7,7 +7,7 @@ router = APIRouter(prefix="/roles", tags=["Roles"])
 ROLES = [
     {"id": 1, "nama": "karyawan"},
     {"id": 2, "nama": "pm"},
-    {"id": 3, "nama": "hr"},
+    {"id": 3, "nama": "hr_manager"},
     {"id": 4, "nama": "direktur"},
     {"id": 5, "nama": "staff_hr"},
 ]

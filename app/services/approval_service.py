@@ -7,9 +7,11 @@ from sqlalchemy.orm import selectinload
 
 from app.models.log_cuti import LogCuti
 from app.models.log_cuti_approval_pm import LogCutiApprovalPM
+from app.models.log_cuti_date import LogCutiDate
 from app.models.user import User
 from app.models.user_pm import UserPM
 from app.schemas.approval import ApprovalRequest, ApprovalResponse
+from app.schemas.log_cuti import ApprovalPMDetail
 from app.schemas.pengajuan import PersetujuanQueueCutiOut
 from app.services.email_service import send_status_email, send_pengajuan_notification, generate_surat_cuti
 from app.services.tambah_cuti_service import konsumsi_cuti
@@ -19,7 +21,7 @@ async def get_queue_card(current_user: User, db: AsyncSession) -> list[Persetuju
     ## map status berdasarkan role
     ROLE_STATUS_MAP = {
         "pm": "menunggu_pm",
-        "hr": "menunggu_hr",
+        "hr_manager": "menunggu_hr",
         "direktur": "menunggu_direktur",
         "staff_hr": "menunggu_hr",
     }
@@ -35,15 +37,27 @@ async def get_queue_card(current_user: User, db: AsyncSession) -> list[Persetuju
         if not team_ids:
             return []
 
+        ## ambil log_cuti yang masih menunggu approval PM ini
+        result_pending_pm = await db.execute(
+            select(LogCutiApprovalPM.id_log_cuti).where(
+                LogCutiApprovalPM.id_pm == current_user.id_user,
+                LogCutiApprovalPM.status == "menunggu",
+            )
+        )
+        pending_log_ids = [row[0] for row in result_pending_pm.all()]
+
         result = await db.execute(
             select(LogCuti)
             .options(
                 selectinload(LogCuti.user_log).selectinload(User.user_departemen),
                 selectinload(LogCuti.user_backup),
+                selectinload(LogCuti.tanggal_list),
+                selectinload(LogCuti.approval_pm_list).selectinload(LogCutiApprovalPM.pm),
             )
             .where(
                 LogCuti.id_user.in_(team_ids),
                 LogCuti.status == target_status,
+                LogCuti.id_log_cuti.in_(pending_log_ids),
             )
         )
     else:
@@ -53,6 +67,8 @@ async def get_queue_card(current_user: User, db: AsyncSession) -> list[Persetuju
             .options(
                 selectinload(LogCuti.user_log).selectinload(User.user_departemen),
                 selectinload(LogCuti.user_backup),
+                selectinload(LogCuti.tanggal_list),
+                selectinload(LogCuti.approval_pm_list).selectinload(LogCutiApprovalPM.pm),
             )
             .where(LogCuti.status == target_status, LogCuti.id_user != current_user.id_user)
         )
@@ -66,13 +82,20 @@ async def get_queue_card(current_user: User, db: AsyncSession) -> list[Persetuju
             nama=log.user_log.nama,
             nama_departemen=log.user_log.user_departemen.nama_departemen,
             jenis_cuti=log.jenis_cuti,
-            tanggal_mulai=log.tanggal_mulai,
-            tanggal_selesai=log.tanggal_selesai,
-            durasi=(log.tanggal_selesai - log.tanggal_mulai).days + 1,
+            tanggal=[t.tanggal for t in log.tanggal_list],
+            durasi=len(log.tanggal_list),
             pengganti=log.user_backup.nama if log.user_backup else "Tidak ada",
             sisa_cuti=log.user_log.sisa_cuti,
             alasan=log.keterangan_cuti,
             tanggal_pengajuan=log.tanggal_pengajuan,
+            approval_pm_detail=[
+                ApprovalPMDetail(
+                    nama_pm=apm.pm.nama,
+                    status=apm.status,
+                    processed_at=apm.processed_at,
+                )
+                for apm in log.approval_pm_list if apm.pm
+            ],
         ))
 
     return queue
@@ -82,7 +105,7 @@ async def get_queue_card(current_user: User, db: AsyncSession) -> list[Persetuju
 ## map acceptable status based on role
 PROCESSABLE_STATUSES = {
     "pm": "menunggu_pm",
-    "hr": "menunggu_hr",
+    "hr_manager": "menunggu_hr",
     "direktur": "menunggu_direktur",
     "staff_hr": "menunggu_hr",
 }
@@ -106,7 +129,8 @@ FINAL_APPROVED = {"disetujui_hr", "disetujui_direktur", "cuti_bersama"}
 
 async def process_approval(log_cuti_id: int, current_user: User, data: ApprovalRequest, db: AsyncSession, background_tasks: BackgroundTasks) -> ApprovalResponse:
     result_cuti = await db.execute(select(LogCuti).options(
-        selectinload(LogCuti.user_log).selectinload(User.user_departemen)).where(LogCuti.id_log_cuti == log_cuti_id))
+        selectinload(LogCuti.user_log).selectinload(User.user_departemen),
+        selectinload(LogCuti.tanggal_list)).where(LogCuti.id_log_cuti == log_cuti_id))
     log_cuti = result_cuti.scalar_one_or_none()
 
     if not log_cuti:
@@ -185,13 +209,13 @@ async def process_approval(log_cuti_id: int, current_user: User, data: ApprovalR
         elif all_approved:
             background_tasks.add_task(send_status_email, log_cuti, user_pengaju, current_user, new_status)
             ## kirim email ke hr bahwa ada pengajuan menunggu
-            result_hr = await db.execute(select(User).where(User.role.in_(["hr", "staff_hr"])))
+            result_hr = await db.execute(select(User).where(User.role.in_(["hr_manager", "staff_hr"])))
             hr_users = result_hr.scalars().all()
             for hr_user in hr_users:
                 if hr_user.email:
                     background_tasks.add_task(
                         send_pengajuan_notification, user_pengaju, hr_user, "cuti tahunan",
-                        log_cuti.tanggal_mulai, log_cuti.tanggal_selesai, log_cuti.keterangan_cuti,
+                        sorted([ld.tanggal for ld in log_cuti.tanggal_list]), log_cuti.keterangan_cuti,
                     )
         else:
             background_tasks.add_task(send_status_email, log_cuti, user_pengaju, current_user, new_status, pending_pm_names)
@@ -213,7 +237,7 @@ async def process_approval(log_cuti_id: int, current_user: User, data: ApprovalR
         new_status = AFTER_ACC_STATUSES[log_cuti.status]
         log_cuti.status = new_status
 
-        if current_user.role == "hr":
+        if current_user.role == "hr_manager":
             log_cuti.diproses_hr = current_user.id_user
             log_cuti.processed_at_hr = datetime.now()
         elif current_user.role == "staff_hr":
@@ -224,7 +248,7 @@ async def process_approval(log_cuti_id: int, current_user: User, data: ApprovalR
             log_cuti.processed_at_direktur = datetime.now()
 
         detail_msg = "Pengajuan berhasil disetujui!"
-        lama_cuti = (log_cuti.tanggal_selesai - log_cuti.tanggal_mulai).days + 1
+        lama_cuti = len(log_cuti.tanggal_list)
 
     elif data.action == "decline":
         if not data.alasan:
@@ -234,7 +258,7 @@ async def process_approval(log_cuti_id: int, current_user: User, data: ApprovalR
         log_cuti.status = new_status
         log_cuti.alasan_penolakan = data.alasan
 
-        if current_user.role == "hr":
+        if current_user.role == "hr_manager":
             log_cuti.diproses_hr = current_user.id_user
             log_cuti.processed_at_hr = datetime.now()
         elif current_user.role == "staff_hr":
@@ -251,7 +275,8 @@ async def process_approval(log_cuti_id: int, current_user: User, data: ApprovalR
     if data.action == "acc" and new_status in FINAL_APPROVED:
         today = datetime.now().date()
         ## set status "cuti" hanya jika cuti sedang berjalan hari ini
-        if log_cuti.tanggal_mulai <= today <= log_cuti.tanggal_selesai:
+        cuti_dates = [ld.tanggal for ld in log_cuti.tanggal_list]
+        if today in cuti_dates:
             user_pengaju.status = "Cuti"
         await konsumsi_cuti(user_pengaju, lama_cuti, db)
 
@@ -271,7 +296,7 @@ async def process_approval(log_cuti_id: int, current_user: User, data: ApprovalR
             if direktur.email:
                 background_tasks.add_task(
                     send_pengajuan_notification, user_pengaju, direktur, "cuti tahunan",
-                    log_cuti.tanggal_mulai, log_cuti.tanggal_selesai, log_cuti.keterangan_cuti,
+                    sorted([ld.tanggal for ld in log_cuti.tanggal_list]), log_cuti.keterangan_cuti,
                 )
     else:
         ## status belum final: kirim notifikasi teks biasa

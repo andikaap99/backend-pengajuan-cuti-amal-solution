@@ -20,8 +20,7 @@ class PMDashboardRingkasanOut(BaseModel):
 class PMDashboardTimOut(BaseModel):
     nama: str
     jenis_cuti: str
-    tanggal_mulai: date
-    tanggal_selesai: date
+    tanggal: list[date] = []
     tanggal_pengajuan: datetime
     status: str
 
@@ -36,8 +35,7 @@ class PMPersetujuanRingkasanTimOut(BaseModel):
 
 ## history
 class PMHistoryPersetujuanOut(BaseModel):
-    tanggal_mulai: date
-    tanggal_selesai: date
+    tanggal: list[date] = []
     nama: str
     jenis_cuti: str
     keterangan: str
@@ -64,8 +62,7 @@ class PMRekapCutiDetailJatah(BaseModel):
 
 ## rekap penambahan kerja detail
 class TanggalKerjaItem(BaseModel):
-    tanggal_mulai: date
-    tanggal_selesai: date
+    tanggal: list[date] = []
 
 class PMRekapPenambahanKerjaDetail(BaseModel):
     nama: str

@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.log_cuti import LogCuti
+from app.models.log_cuti_date import LogCutiDate
 from app.models.user import User
 
 
@@ -23,18 +24,20 @@ async def aktifkan_user_selesai_cuti(db: AsyncSession) -> int:
     count = 0
     for user in users:
         ## tentukan status approved sesuai role
-        if user.role in ("hr", "staff_hr"):
+        if user.role in ("hr_manager", "staff_hr"):
             approved_statuses = ["disetujui_direktur"]
         else:
             approved_statuses = FINAL_APPROVED_STATUSES
 
         ## cek apakah ada cuti yang sedang berjalan hari ini
+        ## (ada baris tanggal = today, pengganti cek range lama)
         result_active = await db.execute(
             select(LogCuti).where(
                 LogCuti.id_user == user.id_user,
                 LogCuti.status.in_(approved_statuses),
-                LogCuti.tanggal_mulai <= today,
-                LogCuti.tanggal_selesai >= today,
+                LogCuti.id_log_cuti.in_(
+                    select(LogCutiDate.id_log_cuti).where(LogCutiDate.tanggal == today)
+                ),
             )
         )
         active_leave = result_active.scalars().first()

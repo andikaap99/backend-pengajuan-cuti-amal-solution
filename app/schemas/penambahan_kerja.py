@@ -5,8 +5,7 @@ from pydantic import BaseModel
 
 
 class PenambahanKerjaCreate(BaseModel):
-    tanggal_mulai: date
-    tanggal_selesai: date
+    tanggal: list[date]
     keterangan: str
 
 
@@ -19,10 +18,9 @@ class PenambahanKerjaApprovalPMDetail(BaseModel):
 class PenambahanKerjaOut(BaseModel):
     id_pengajuan_kerja: int
     id_user: int
-    tanggal_mulai: date
-    tanggal_selesai: date
+    tanggal: list[date] = []
     keterangan_pengajuan: str
-    status: Literal["menunggu_pm", "disetujui_pm", "ditolak_pm", "menunggu_hr", "disetujui_hr", "ditolak_hr"]
+    status: Literal["menunggu_pm", "disetujui_pm", "ditolak_pm", "menunggu_hr", "disetujui_hr", "ditolak_hr", "menunggu_direktur", "disetujui_direktur", "ditolak_direktur"]
     tanggal_pengajuan: Optional[datetime] = None
     approval_pm_detail: list[PenambahanKerjaApprovalPMDetail] = []
 
@@ -33,8 +31,7 @@ class PenambahanKerjaQueueOut(BaseModel):
     id_pengajuan_kerja: int
     nama: str
     nama_departemen: str
-    tanggal_mulai: date
-    tanggal_selesai: date
+    tanggal: list[date] = []
     keterangan: str
     tanggal_pengajuan: Optional[datetime] = None
     status: str
