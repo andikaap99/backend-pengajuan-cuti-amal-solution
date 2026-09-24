@@ -12,6 +12,7 @@ from app.models.log_penambahan_kerja import LogPenambahanKerja
 from app.models.log_penambahan_kerja_date import LogPenambahanKerjaDate
 from app.models.log_penambahan_kerja_approval_pm import LogPenambahanKerjaApprovalPM
 from app.models.log_reassignment_approval import LogReassignmentApproval
+from app.models.password_reset_token import PasswordResetToken
 from app.models.user import User
 from app.models.user_pm import UserPM
 from app.models.departemen import Departemen
@@ -893,6 +894,13 @@ async def delete_karyawan(user_id: int, current_user: User, db: AsyncSession) ->
     )
     for upm in result_user_pm_pm.scalars().all():
         await db.delete(upm)
+
+    ## hapus password reset token
+    result_token = await db.execute(
+        select(PasswordResetToken).where(PasswordResetToken.id_user == user_id)
+    )
+    for token in result_token.scalars().all():
+        await db.delete(token)
 
     ## terakhir, hapus user
     await db.delete(user)

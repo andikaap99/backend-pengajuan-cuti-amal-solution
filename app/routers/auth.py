@@ -19,6 +19,7 @@ from app.models.password_reset_token import PasswordResetToken
 from app.schemas.user import Token, UserOut, UserRegister, UserMeOut, UserRegisterAdmin, ChangePassword, ChangePasswordMessage, ExecutiveOut, UpdateProfile, UpdateProfileMessage, ForgotPasswordRequest, ForgotPasswordMessage, ResetPasswordRequest, ResetPasswordRequestById, ResetPasswordMessage
 from app.services.cuti_service import hitung_cuti_terpakai
 from app.services.email_service import send_forgot_password_email, send_password_changed_notification
+from app.services.tambah_cuti_service import get_jatah_cuti_awal
 
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
@@ -60,12 +61,16 @@ async def register(
             detail="Username sudah terdaftar",
         )
 
+    jatah = await get_jatah_cuti_awal(db)
+
     user = User(
         username=data.username,
         nama=data.nama,
         password=hash_password(data.password),
         role="karyawan",
         id_departemen=data.id_departemen,
+        total_cuti=jatah,
+        sisa_cuti=jatah,
     )
     db.add(user)
     await db.commit()
@@ -87,6 +92,8 @@ async def register(
             detail="Username sudah terdaftar",
         )
 
+    jatah = await get_jatah_cuti_awal(db)
+
     user = User(
         username=data.username,
         nama=data.nama,
@@ -96,6 +103,8 @@ async def register(
         email=data.email,
         no_telp=data.no_telp,
         tanggal_bergabung=data.tanggal_bergabung,
+        total_cuti=jatah,
+        sisa_cuti=jatah,
     )
     db.add(user)
     await db.commit()
