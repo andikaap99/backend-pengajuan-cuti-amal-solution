@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.holiday import Holiday
 from app.schemas.holiday import NextCutiBersamaOut
+from app.models.log_penambahan_kerja import LogPenambahanKerja
+from app.models.log_penambahan_kerja_date import LogPenambahanKerjaDate
 from datetime import timedelta
 
 
@@ -84,34 +86,30 @@ async def get_next_cuti_bersama(db: AsyncSession) -> NextCutiBersamaOut | None:
         total_hari=total_hari,
     )
 
-
-async def get_next_pending_holiday_days(db: AsyncSession) -> int:
-    from datetime import timedelta
-
+async def get_reserved_cuti_bersama_days(user_id: int, db: AsyncSession) -> int:
     today = date.today()
 
     result = await db.execute(
-        select(Holiday)
-        .where(
+        select(Holiday.tanggal).where(
             Holiday.is_cuti_bersama == True,
             Holiday.tanggal >= today,
             Holiday.sudah_dikurangi == False,
         )
-        .order_by(Holiday.tanggal.asc())
     )
-    holidays = result.scalars().all()
 
-    if not holidays:
+    pending_dates = {row[0] for row in result.all()}
+    if not pending_dates:
         
         return 0
 
-    tanggal_mulai = holidays[0].tanggal
-    tanggal_selesai = holidays[0].tanggal
+    result_kerja = await db.execute(
+        select(LogPenambahanKerjaDate.tanggal)
+        .join(LogPenambahanKerja, LogPenambahanKerja.id_pengajuan_kerja == LogPenambahanKerjaDate.id_pengajuan_kerja)
+        .where(
+            LogPenambahanKerja.id_user == user_id,
+            LogPenambahanKerja.status.in_(["disetujui_hr", "disetujui_direktur"]),
+        )
+    )
+    kerja_dates = {row[0] for row in result_kerja.all()}
 
-    for h in holidays[1:]:
-        if h.tanggal == tanggal_selesai + timedelta(days=1):
-            tanggal_selesai = h.tanggal
-        else:
-            break
-
-    return (tanggal_selesai - tanggal_mulai).days + 1
+    return len(pending_dates - kerja_dates)

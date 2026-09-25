@@ -7,12 +7,11 @@ from sqlalchemy.orm import selectinload
 from app.models.log_cuti import LogCuti
 from app.models.log_cuti_date import LogCutiDate
 from app.models.log_cuti_approval_pm import LogCutiApprovalPM
-from app.models.holiday import Holiday
 from app.models.user import User
 from app.models.user_pm import UserPM
 from app.schemas.log_cuti import PengajuanCutiOut, PengajuanCutiUpdate, RiwayatCutiOut, EmpDashboardPengajuanOngoingOut, EmpDashboardRingkasanOut, ApprovalPMDetail
 from app.services.ongoing_status_role_service import get_ongoing_statuses, get_finished_statuses
-from app.services.holiday_service import get_next_pending_holiday_days
+from app.services.holiday_service import get_reserved_cuti_bersama_days
 from app.services.email_service import send_pengajuan_notification
 
 
@@ -76,29 +75,19 @@ async def create_pengajuan_cuti(data: PengajuanCutiOut, user_id: int, db: AsyncS
     if durasi > 4:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Maksimal cuti selama 4 hari")
 
-    next_holiday_days = await get_next_pending_holiday_days(db)
+    reserved = await get_reserved_cuti_bersama_days(user_id, db)
 
     if user.sisa_cuti < durasi:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Sisa cuti tidak mencukupi")
 
-    sisa_setelah_potong = user.sisa_cuti - next_holiday_days
+    sisa_setelah_potong = user.sisa_cuti - reserved
 
     if sisa_setelah_potong < durasi:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Sisa cuti tidak mencukupi setelah potongan cuti bersama mendatang")
 
-    result_holiday = await db.execute(
-        select(Holiday).where(
-            Holiday.is_cuti_bersama == True,
-            Holiday.sudah_dikurangi == False,
-        )
-    )
-    holidays = result_holiday.scalars().all()
-
-    if holidays:
-        jumlah_cuti_bersama = len(holidays)
-        if user.sisa_cuti < jumlah_cuti_bersama:
-            raise HTTPException(status_code=400, detail="Sisa cuti sudah habis dan hanya menyisakan cuti bersama")
-
+    if user.sisa_cuti < reserved:
+        raise HTTPException(status_code=400, detail="Sisa cuti sudah habis dan hanya menyisakan cuti bersama")
+    
     if data.pengganti is not None:
         if data.pengganti == user_id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Pengganti tidak boleh diri sendiri")
@@ -418,25 +407,19 @@ async def edit_pengajuan_cuti(
         if overlapping.scalar_one_or_none():
             raise HTTPException(status_code=400, detail=f"Tanggal {t} sudah pernah diambil atau tertumpang tindih!")
 
-    next_holiday_days = await get_next_pending_holiday_days(db)
+    reserved = await get_reserved_cuti_bersama_days(user_id, db)
 
     if user.sisa_cuti < durasi:
         raise HTTPException(status_code=400, detail="Sisa cuti tidak mencukupi!")
 
-    sisa_setelah_potong = user.sisa_cuti - next_holiday_days
+    sisa_setelah_potong = user.sisa_cuti - reserved
 
     if sisa_setelah_potong < durasi:
         raise HTTPException(status_code=400, detail="Sisa cuti tidak mencukupi setelah potongan cuti bersama mendatang!")
 
-    result_holiday = await db.execute(
-        select(Holiday).where(Holiday.is_cuti_bersama == True, Holiday.sudah_dikurangi == False)
-    )
-    holidays = result_holiday.scalars().all()
 
-    if holidays:
-        jumlah_cuti_bersama = len(holidays)
-        if user.sisa_cuti < jumlah_cuti_bersama:
-            raise HTTPException(status_code=400, detail="Sisa cuti sudah habis dan hanya menyisakan cuti bersama")
+    if user.sisa_cuti < reserved:
+        raise HTTPException(status_code=400, detail="Sisa cuti sudah habis dan hanya menyisakan cuti bersama")
 
     if new_pengganti is not None:
         if new_pengganti == user_id:

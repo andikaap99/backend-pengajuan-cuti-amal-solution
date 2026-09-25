@@ -33,6 +33,7 @@ Thumbs.db
 # Documentation (not for repo)
 todo.md
 progress.md
+plan_to_do.md
 
 # Seed scripts
 seed_*.py
